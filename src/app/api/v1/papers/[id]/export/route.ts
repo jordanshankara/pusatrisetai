@@ -1,7 +1,5 @@
-import { prisma } from "@/lib/db";
 import { badRequest, notFound, internalError } from "@/lib/api/response";
-import { withPublicPaperFilter } from "@/lib/queries/public";
-import { buildBibtex } from "@/lib/bibtex";
+import { getBibtexForPaper } from "@/lib/services/papers";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,33 +11,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   try {
-    const paper = await prisma.paper.findFirst({
-      where: withPublicPaperFilter({ id }),
-      include: {
-        venue: { select: { displayName: true, venueType: true } },
-        identifiers: { where: { idType: "doi" } },
-        paperAuthors: { orderBy: { authorOrder: "asc" }, include: { author: { select: { name: true } } } },
-      },
-    });
+    const bibtex = await getBibtexForPaper(id);
+    if (!bibtex) return notFound("Paper tidak ditemukan.");
 
-    if (!paper) {
-      return notFound("Paper tidak ditemukan.");
-    }
-
-    const bibtex = buildBibtex({
-      title: paper.title,
-      authors: paper.paperAuthors.map((pa) => ({ name: pa.author.name })),
-      year: paper.publishedDate ? paper.publishedDate.getUTCFullYear() : null,
-      venueDisplayName: paper.venue?.displayName ?? null,
-      venueType: paper.venue?.venueType ?? null,
-      doi: paper.identifiers[0]?.idValue ?? null,
-      canonicalUrl: paper.canonicalUrl,
-    });
-
-    return new Response(bibtex, {
-      status: 200,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
+    return new Response(bibtex, { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   } catch (error) {
     return internalError(error);
   }

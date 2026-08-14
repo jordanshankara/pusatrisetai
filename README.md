@@ -16,8 +16,7 @@ Katalog + lapisan interpretasi untuk riset AI Indonesia & internasional. Lihat
 3. `npm install`
 4. `npm run db:migrate` — membuat database `pusatriset` + seluruh tabel.
 5. `npm run db:seed` — mengisi data contoh (~66 paper + venue, institusi, penulis, dll).
-6. `npm run dev` — buka [http://localhost:3000](http://localhost:3000). Belum ada halaman visual —
-   API bisa dites lewat curl/Postman (lihat contoh di bawah).
+6. `npm run dev` — buka [http://localhost:3000](http://localhost:3000).
 
 Verifikasi cepat tanpa database: `npm test` (unit test) dan `npm run build` (type-check + build produksi).
 
@@ -42,16 +41,14 @@ untuk menguji endpoint admin sebelum ada halaman login sungguhan (cookie-session
 
 ## Kasus uji merge/redirect
 
-Seed membuat satu kasus **paper merge** untuk menguji redirect 301/308:
+Seed membuat satu kasus **paper merge** untuk menguji redirect di halaman `/riset/[id]`:
 - Paper survivor: *"Optimasi Rute Distribusi Logistik Perkotaan Menggunakan Reinforcement Learning"*
 - UUID lama (`merged_id`, sengaja tidak mengarah ke paper mana pun):
   ```
   00000000-0000-4000-8000-000000000099
   ```
-  ```bash
-  curl -i http://localhost:3000/api/v1/papers/00000000-0000-4000-8000-000000000099
-  # -> 308 Permanent Redirect ke /api/v1/papers/{id-survivor}
-  ```
+  Buka `http://localhost:3000/riset/00000000-0000-4000-8000-000000000099` di browser →
+  redirect permanen ke halaman paper survivor (terverifikasi via `permanentRedirect`).
 
 ## Status tahapan
 
@@ -59,44 +56,46 @@ Seed membuat satu kasus **paper merge** untuk menguji redirect 301/308:
 - [x] **Tahap 2** — seed data deterministik (Bagian 8): 66 paper, semua kasus uji wajib.
 - [x] **Tahap 3** — API routes (`/api/v1/...`, `/api/admin/...`) dengan helper query dua-sumbu
       (`src/lib/queries/public.ts`), FTS MySQL, BibTeX, rate limit, auth admin cookie-session.
-- [ ] **Tahap 4** — halaman publik (Home, Katalog, Detail, Dashboard, Metodologi).
+- [x] **Tahap 4** — halaman publik (Home, Katalog, Detail, Dashboard, Metodologi) — diverifikasi
+      visual lewat browser terhadap data seed asli.
 - [ ] **Tahap 5** — admin panel (UI) + halaman login.
 
 ## Acceptance checklist (Bagian 2.3 BuildSpec)
 
 1. [x] `npm run db:migrate && npm run db:seed && npm run dev` jalan tanpa error (XAMPP MySQL, bukan docker-compose Postgres).
-2. [ ] Katalog UI + search "diabetes" + filter kombinasi — **API sudah terverifikasi jalan** (`GET /api/v1/papers?q=diabetes` mengembalikan hasil tepat), UI menunggu Tahap 4.
-3. [ ] Halaman detail paper `superseded` — **API sudah terverifikasi**: `tb_2019` badge `superseded`, relasi `superseded_by` approved ke `tb_2024`. UI menunggu Tahap 4.
-4. [x] Abstrak tersensor sesuai `abstractDisplayPolicy` — **terverifikasi**: paper `restricted` mengembalikan `abstract: null` dari API meski `abstractRaw` terisi di DB.
-5. [x] Login admin → antrean → approve summary draft → tayang tanpa restart — **terverifikasi end-to-end** lewat curl (lihat riwayat commit).
-6. [x] `GET /api/v1/papers/:id/export?format=bibtex` menghasilkan BibTeX valid — **terverifikasi**, escape karakter & key generation sesuai Bagian 6.5.
-7. [x] Redirect merge 308 — **terverifikasi**: akses UUID lama redirect ke paper survivor.
+2. [x] Katalog + search "diabetes" + filter kombinasi — **terverifikasi visual**: `/katalog?q=diabetes` menampilkan hasil tepat; filter subfield+hideSuperseded teruji (7 hasil, superseded tersembunyi).
+3. [x] Halaman detail paper `superseded` — **terverifikasi visual**: badge "Sudah Digantikan", kartu "Riset Penerus" dengan alasan & link ke paper 2024.
+4. [x] Abstrak tersensor sesuai `abstractDisplayPolicy` — **terverifikasi di API & UI**: paper `restricted` menampilkan pesan pengganti, bukan `abstractRaw`.
+5. [x] Login admin → antrean → approve summary draft → tayang tanpa restart — **terverifikasi end-to-end** lewat curl (lihat riwayat commit Tahap 3).
+6. [x] `GET /api/v1/papers/:id/export?format=bibtex` menghasilkan BibTeX valid, tombol "Ekspor BibTeX" di halaman detail — **terverifikasi**.
+7. [x] Redirect merge — **terverifikasi di halaman**: `/riset/{merged-uuid}` redirect permanen ke paper survivor.
 8. [x] `npm run build` sukses tanpa type error.
 9. [x] `deriveAbstractPolicy()` punya unit test dan lulus 4 kasus (Patch 6) — 7 test, semua pass.
 10. [x] Paper CC BY-SA → `full`; paper `restricted` → `summary_only`, API tidak pernah mengirim `abstractRaw` saat itu.
-11. [ ] Tampilan judul dwibahasa — **data + API siap** (`GET /api/v1/papers/:id` mengembalikan array `titles`), UI menunggu Tahap 4.
-12. [ ] Penanda "afiliasi perkiraan" — **data + API siap** (field `affiliationInferred` di detail response), UI menunggu Tahap 4.
-13. [x] `enrichmentStatus` tidak pernah muncul di respons publik (`GET /api/v1/papers/:id`) — field sengaja dikecualikan dari mapping response.
+11. [x] Tampilan judul dwibahasa — **terverifikasi**: judul sekunder tampil italic di bawah H1 pada paper yang punya `titles` ganda.
+12. [x] Penanda "afiliasi perkiraan" — **terverifikasi**: teks "⚑ Afiliasi institusi merupakan perkiraan" tampil di halaman detail paper `affiliationInferred=true`.
+13. [x] `enrichmentStatus` tidak pernah muncul di respons publik — field sengaja dikecualikan dari service layer (`src/lib/services/papers.ts`).
 
-## Contoh pemakaian API (Tahap 3)
+## Arsitektur Tahap 3 & 4
+
+Logika query/bisnis dipusatkan di `src/lib/services/papers.ts` — dipakai LANGSUNG oleh Server
+Component halaman (`/`, `/katalog`, `/riset/[id]`, `/dashboard`) maupun oleh route handler
+`/api/v1/*`, supaya filter dua-sumbu editorial (Bagian 6.1) dan shaping data tidak dobel-tulis
+dan tidak bisa drift antara API publik dan halaman.
+
+Filter Katalog memakai native HTML `<form method="GET">` dengan auto-submit `onChange` (client
+component tipis `FilterForm.tsx`) — state filter sepenuhnya di URL (shareable), tab Detail
+(Data Asli / Ringkasan) dan switcher bahasa (id/en) juga URL-driven, bukan client state, supaya
+konsisten dengan pola yang sama dan tetap SEO-friendly.
+
+## Contoh pemakaian API
 
 ```bash
-# List + search + filter
 curl "http://localhost:3000/api/v1/papers?q=diabetes"
-curl "http://localhost:3000/api/v1/papers?origin=local&relevance=needs_update"
-curl "http://localhost:3000/api/v1/papers?hideSuperseded=true"
-
-# Detail
 curl "http://localhost:3000/api/v1/papers/{id}"
-
-# Ekspor BibTeX
 curl "http://localhost:3000/api/v1/papers/{id}/export?format=bibtex"
-
-# Topik & tren
 curl "http://localhost:3000/api/v1/topics"
 curl "http://localhost:3000/api/v1/stats/trends"
-
-# Dispute & submission publik
 curl -X POST "http://localhost:3000/api/v1/disputes" -H "Content-Type: application/json" \
   -d '{"paperId":"...","disputeType":"relevance_badge","email":"a@b.com","argument":"..."}'
 ```
