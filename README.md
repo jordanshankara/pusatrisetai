@@ -134,6 +134,30 @@ tidak bocor ke respons publik.
 Nonaktif secara default (`ENABLE_OPENALEX_FETCH=false`) — kalau dijalankan tanpa flag ini, script
 keluar segera tanpa menyentuh database sama sekali.
 
+### Bersihkan paper filler seed (opsional, setelah fetch berhasil)
+
+`db:seed` membuat ±40 paper "filler" generik (isi katalog dari Tahap 2, sebelum ada data asli)
+di samping 26 paper "hand-special" yang membawa skenario uji sistem editorial (pasangan
+superseded, retracted, restricted-license, foundational, kasus merge, dll — lihat Bagian 8 poin
+6 di BUILD_SPEC). Setelah `fetch:openalex` berhasil mengisi katalog dengan riset asli, paper
+filler itu tidak relevan lagi — `scripts/remove-filler-seed.ts` menghapusnya, **sambil tetap
+mempertahankan** 26 paper hand-special (supaya sistem kurasi tetap bisa didemokan) dan seluruh
+paper hasil OpenAlex:
+
+```bash
+npx tsx scripts/remove-filler-seed.ts
+```
+
+Urutan yang direkomendasikan untuk katalog "campuran" (kurasi seed + riset asli, tanpa filler):
+```bash
+npm run db:seed          # reset ke keadaan awal (66 paper)
+npm run fetch:openalex    # tambahkan riset asli dari OpenAlex (butuh ENABLE_OPENALEX_FETCH=true)
+npx tsx scripts/remove-filler-seed.ts   # buang 40 paper filler
+```
+Hasil akhir: 26 paper contoh kurasi + N paper OpenAlex asli (per uji terakhir: 100 paper,
+total 126). Katalog, search, dashboard, dan antrean admin (summaries/relations/disputes/
+submissions — semuanya merujuk paper hand-special) tetap berfungsi penuh sesudahnya.
+
 ## Contoh pemakaian API
 
 ```bash
