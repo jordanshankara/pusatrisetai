@@ -1,0 +1,460 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Origin {
+  local
+  international
+}
+
+enum SourceTier {
+  tier_1
+  tier_2
+  tier_3
+}
+/// tier_4 tidak pernah masuk tabel papers
+
+enum MetadataStatus {
+  indexed
+  queued_review
+  rejected
+  withdrawn
+}
+
+enum AbstractPolicy {
+  full
+  summary_only
+  link_only
+}
+
+enum SummaryStatus {
+  draft
+  in_review
+  published
+  rejected
+}
+
+enum SummarySource {
+  manual
+  ai_draft
+  ai_reviewed
+}
+
+enum Provenance {
+  from_abstract
+  from_fulltext
+}
+
+enum Lang {
+  id
+  en
+}
+
+enum RelationType {
+  superseded_by
+  follow_up_same_author
+  related_semantic
+  contradicted_by
+  extended_by
+}
+
+enum ReviewStatus {
+  suggested
+  approved
+  rejected
+  disputed
+}
+
+enum RelevanceStatus {
+  too_new_to_score
+  still_relevant
+  needs_update
+  superseded
+  retracted
+}
+
+enum PublishedRelevance {
+  still_relevant
+  needs_update
+  superseded
+  retracted
+  foundational
+}
+
+enum RetractionStatus {
+  none
+  retracted
+  expression_of_concern
+}
+
+enum UserRole {
+  admin
+  editor
+  contributor
+  reader
+}
+
+enum VenueType {
+  conference
+  journal
+  preprint_repo
+  repository
+}
+
+enum TagStatus {
+  suggested
+  published
+  rejected
+}
+
+enum DisputeStatus {
+  open
+  in_review
+  accepted
+  rejected
+}
+
+enum SubmissionStatus {
+  queued
+  in_review
+  approved
+  rejected_spam
+  rejected_predatory
+  rejected_duplicate
+  rejected_no_credentials
+}
+
+enum IdType {
+  doi
+  arxiv_id
+  openreview_id
+  openalex_id
+  oai_identifier
+  semantic_scholar_id
+}
+
+/// PATCH 1 — lisensi sumber, dipakai deriveAbstractPolicy() untuk menurunkan abstractDisplayPolicy
+enum License {
+  cc_by
+  cc_by_sa
+  cc_by_nc
+  cc_by_nc_sa
+  cc0
+  other_open
+  restricted
+  unknown
+}
+
+/// PATCH 4 — kualitas data per record; hanya tampil di admin, jangan pernah di publik
+enum EnrichmentStatus {
+  pending
+  enriched_openalex
+  no_doi
+  not_found_openalex
+  failed
+}
+
+model Paper {
+  id                    String   @id @default(uuid())
+  title                 String
+  titleLang             String?  @map("title_lang")
+  /// HANYA diisi jika lisensi mengizinkan; UI TIDAK BOLEH menampilkan abstractRaw jika policy != full
+  abstractRaw           String?  @map("abstract_raw")
+  abstractDisplayPolicy AbstractPolicy @default(summary_only) @map("abstract_display_policy") /// default AMAN; PATCH 1: nilai wajib berasal dari deriveAbstractPolicy(), tidak pernah diketik manual
+  publishedDate         DateTime? @map("published_date") @db.Date
+  language              String?
+  /// origin = local ⇔ >=1 penulis berafiliasi institusi Indonesia (via AuthorAffiliation)
+  origin                Origin
+  venueId               String?  @map("venue_id")
+  venue                 ApprovedVenue? @relation(fields: [venueId], references: [id])
+  venueNameRaw          String?  @map("venue_name_raw")   /// nama venue apa adanya dari sumber (audit)
+  venueCountry          String?  @map("venue_country")
+  /// denormalisasi utk filter negara (many-to-many; kolaborasi = banyak negara). Di-derive dari AuthorAffiliation saat seed/ingest.
+  affiliationCountries  String[] @map("affiliation_countries")
+  sourceTier            SourceTier @default(tier_3) @map("source_tier")
+  tierReason            String?  @map("tier_reason")
+  isFoundational        Boolean  @default(false) @map("is_foundational")
+  /// SUMBU 2: status ini HANYA untuk metadata; interpretasi punya gerbang sendiri
+  metadataStatus        MetadataStatus @default(indexed) @map("metadata_status")
+  inclusionBasis        String?  @map("inclusion_basis")
+  canonicalUrl          String?  @map("canonical_url")
+  /// PATCH 1 — string lisensi apa adanya dari sumber (dc:rights / OpenAlex). Bukti audit — jangan dinormalisasi di tempat ini.
+  licenseRaw            String?  @map("license_raw")
+  licenseNormalized     License  @default(unknown) @map("license_normalized")
+  /// PATCH 3 — TRUE = afiliasi ditebak dari institusi penerbit jurnal, bukan dari data penulis terverifikasi
+  affiliationInferred   Boolean  @default(false) @map("affiliation_inferred")
+  /// PATCH 4 — status pengayaan metadata; hanya tampil di admin
+  enrichmentStatus      EnrichmentStatus @default(pending) @map("enrichment_status")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  identifiers    PaperIdentifier[]
+  titles         PaperTitle[]
+  topics         PaperTopic[]
+  paperAuthors   PaperAuthor[]
+  affiliations   AuthorAffiliation[]
+  summaries      Summary[]
+  citationStats  CitationStats?
+  versions       PaperVersion[]
+  relationsOld   PaperRelation[] @relation("old")
+  relationsNew   PaperRelation[] @relation("new")
+  relevance      RelevanceScore?
+  policyTags     PaperPolicyTag[]
+  mergesAsSurviving PaperMerge[] @relation("surviving")
+
+  @@index([publishedDate])
+  @@index([origin])
+  @@index([sourceTier])
+  @@index([metadataStatus])
+  @@map("papers")
+}
+/// TODO migrasi manual setelah prisma migrate: kolom tsvector FTS + GIN index (lihat Bagian 6.4)
+
+/// PATCH 2 — judul dwibahasa. Paper.title TETAP ADA sebagai judul primary (denormalisasi utk FTS/sorting);
+/// HARUS sama dengan baris PaperTitle yang isPrimary=true. Enforce di seed & helper penulisan.
+model PaperTitle {
+  paperId   String  @map("paper_id")
+  paper     Paper   @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  language  String                        /// 'id' | 'en' | lainnya
+  title     String
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  @@id([paperId, language])
+  @@map("paper_titles")
+}
+
+model PaperIdentifier {
+  id      String @id @default(uuid())
+  paperId String @map("paper_id")
+  paper   Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  idType  IdType @map("id_type")
+  idValue String @map("id_value")
+  @@unique([idType, idValue])
+  @@index([paperId])
+  @@map("paper_identifiers")
+}
+
+model PaperMerge {
+  survivingId String @map("surviving_id")
+  surviving   Paper  @relation("surviving", fields: [survivingId], references: [id])
+  mergedId    String @map("merged_id")      /// UUID lama; TIDAK ber-FK (record aslinya sudah dihapus/soft)
+  method      String
+  mergedAt    DateTime @default(now()) @map("merged_at")
+  @@id([survivingId, mergedId])
+  @@index([mergedId])                        /// lookup redirect: WHERE merged_id = :requestedId
+  @@map("paper_merges")
+}
+
+model ApprovedVenue {
+  id                String  @id @default(uuid())
+  displayName       String  @map("display_name")
+  venueType         VenueType @map("venue_type")
+  tier              SourceTier
+  rankingBasis      String? @map("ranking_basis")
+  /// KUNCI PENCOCOKAN — bukan nama. Minimal satu terisi.
+  openalexSourceId  String? @unique @map("openalex_source_id")
+  issnL             String? @unique @map("issn_l")
+  arxivCategories   String[] @map("arxiv_categories")
+  country           String?
+  active            Boolean @default(true)
+  papers            Paper[]
+  @@map("approved_venues")
+}
+
+model Institution {
+  id                    String  @id @default(uuid())
+  name                  String
+  nameVariants          String[] @map("name_variants")
+  country               String?
+  institutionType       String? @map("institution_type")
+  openalexInstitutionId String? @unique @map("openalex_institution_id")
+  rorId                 String? @unique @map("ror_id")
+  profileDescription    String? @map("profile_description")
+  affiliations          AuthorAffiliation[]
+  @@index([country])
+  @@map("institutions")
+}
+
+model Author {
+  id               String  @id @default(uuid())
+  name             String
+  orcidId          String? @map("orcid_id")
+  openalexAuthorId String? @map("openalex_author_id")
+  paperAuthors     PaperAuthor[]
+  affiliations     AuthorAffiliation[]
+  @@map("authors")
+}
+
+model PaperAuthor {
+  paperId     String @map("paper_id")
+  authorId    String @map("author_id")
+  authorOrder Int    @map("author_order")
+  paper  Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  author Author @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  @@id([paperId, authorId])
+  @@map("paper_authors")
+}
+
+model AuthorAffiliation {
+  authorId      String @map("author_id")
+  institutionId String @map("institution_id")
+  paperId       String @map("paper_id")     /// afiliasi PER PAPER — orang pindah institusi
+  author      Author      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  paper       Paper       @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  @@id([authorId, institutionId, paperId])
+  @@map("author_affiliations")
+}
+
+model PaperTopic {
+  id        String  @id @default(uuid())
+  paperId   String  @map("paper_id")
+  paper     Paper   @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  domain    String?
+  field     String?
+  subfield  String?
+  topic     String?
+  topicId   String? @map("topic_id")
+  isPrimary Boolean @default(false) @map("is_primary")
+  score     Float?
+  @@index([paperId])
+  @@index([subfield])
+  @@map("paper_topics")
+}
+
+model Summary {
+  id                 String @id @default(uuid())
+  paperId            String @map("paper_id")
+  paper              Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  language           Lang   @default(id)
+  summaryLayperson   String? @map("summary_layperson")
+  summaryTechnical   String? @map("summary_technical")
+  relevanceIndonesia String? @map("relevance_indonesia")
+  sourceType         SummarySource @map("source_type")
+  provenance         Provenance @default(from_abstract)
+  /// SUMBU 2: gerbang editorial ADA DI SINI. Publik hanya melihat status=published.
+  status             SummaryStatus @default(draft)
+  authoredById       String? @map("authored_by")
+  reviewedById       String? @map("reviewed_by")
+  version            Int @default(1)
+  createdAt          DateTime @default(now()) @map("created_at")
+  @@index([paperId, language, status])
+  @@map("summaries")
+}
+/// ATURAN (enforce di kode + partial unique index manual, Bagian 6.4): max 1 published per (paperId, language)
+
+model CitationStats {
+  paperId                      String @id @map("paper_id")
+  paper                        Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  citationCountTotal           Int    @default(0) @map("citation_count_total")
+  citationByYear               Json?  @map("citation_by_year")
+  fwci                         Float? /// native OpenAlex — jangan hitung sendiri utk internasional
+  citationNormalizedPercentile Float? @map("citation_normalized_percentile")
+  localPercentile              Float? @map("local_percentile")   /// hanya utk origin=local
+  retractionStatus             RetractionStatus @default(none) @map("retraction_status")
+  @@map("citation_stats")
+}
+
+model PaperVersion {
+  id            String @id @default(uuid())
+  paperId       String @map("paper_id")
+  paper         Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  versionNumber Int    @map("version_number")
+  changedSummary String? @map("changed_summary")
+  versionDate   DateTime? @map("version_date") @db.Date
+  @@unique([paperId, versionNumber])
+  @@map("paper_versions")
+}
+
+model PaperRelation {
+  id              String @id @default(uuid())
+  paperIdOld      String @map("paper_id_old")
+  paperIdNew      String @map("paper_id_new")
+  old             Paper @relation("old", fields: [paperIdOld], references: [id])
+  new             Paper @relation("new", fields: [paperIdNew], references: [id])
+  relationType    RelationType @map("relation_type")
+  confidenceScore Float? @map("confidence_score")
+  reasoningText   String? @map("reasoning_text")
+  /// SUMBU 2: publik hanya melihat status=approved
+  status          ReviewStatus @default(suggested)
+  @@unique([paperIdOld, paperIdNew, relationType])
+  @@map("paper_relations")
+}
+/// enforce di kode: paperIdOld !== paperIdNew (tolak di API/seed)
+
+model RelevanceScore {
+  paperId            String @id @map("paper_id")
+  paper              Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  computedScore      Int?    @map("computed_score")
+  computedStatus     RelevanceStatus @default(too_new_to_score) @map("computed_status")
+  computedReasoning  String? @map("computed_reasoning")
+  /// yang TAMPIL ke publik. NULL = tidak ada badge sama sekali (bukan badge abu-abu).
+  publishedStatus    PublishedRelevance? @map("published_status")
+  publishedReasoning String? @map("published_reasoning")
+  overrideById       String? @map("override_by")   /// terisi = editor mengunci; recompute dilarang menyentuh published_*
+  overrideReason     String? @map("override_reason")
+  @@map("relevance_scores")
+}
+
+model PolicyTag {
+  id          String @id @default(uuid())
+  slug        String @unique
+  labelId     String @map("label_id")
+  labelEn     String? @map("label_en")
+  tagGroup    String? @map("tag_group")
+  active      Boolean @default(true)
+  paperTags   PaperPolicyTag[]
+  @@map("policy_tags")
+}
+
+model PaperPolicyTag {
+  paperId String @map("paper_id")
+  tagId   String @map("tag_id")
+  paper Paper     @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  tag   PolicyTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  /// SUMBU 2: publik hanya melihat status=published
+  status  TagStatus @default(suggested)
+  @@id([paperId, tagId])
+  @@map("paper_policy_tags")
+}
+
+model User {
+  id          String @id @default(uuid())
+  email       String @unique
+  displayName String? @map("display_name")
+  role        UserRole
+  active      Boolean @default(true)
+  @@map("users")
+}
+
+model Dispute {
+  id               String @id @default(uuid())
+  paperId          String @map("paper_id")
+  disputeType      String @map("dispute_type")
+  submittedByName  String? @map("submitted_by_name")
+  submittedByEmail String? @map("submitted_by_email")
+  argument         String
+  status           DisputeStatus @default(open)
+  resolution       String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  @@map("disputes")
+}
+
+model Submission {
+  id                String @id @default(uuid())
+  submittedByName   String? @map("submitted_by_name")
+  submittedByEmail  String @map("submitted_by_email")
+  claimedIdentifier String? @map("claimed_identifier")
+  paperId           String? @map("paper_id")
+  status            SubmissionStatus @default(queued)
+  submittedAt       DateTime @default(now()) @map("submitted_at")
+  @@map("submissions")
+}
+
+// Catatan: tabel sources/harvest_state/harvest_runs/rejected_records/author_credentials/takedown_requests
+// dari PRD produksi SENGAJA tidak dibuat di prototype (tidak ada harvester). Jangan tambahkan.

@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pusatriset
+      POSTGRES_PASSWORD: pusatriset
+      POSTGRES_DB: pusatriset
+    ports:
+      - "5432:5432"
+    volumes:
+      - pusatriset_pgdata:/var/lib/postgresql/data
+
+volumes:
+  pusatriset_pgdata:
