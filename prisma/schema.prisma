@@ -1,9 +1,17 @@
+/// ADAPTASI MYSQL/XAMPP (menyimpang dari BUILD_SPEC Bagian 3 yang menetapkan PostgreSQL 16):
+/// - 3 kolom String[] (affiliationCountries, arxivCategories, nameVariants) dipecah jadi tabel
+///   junction terpisah karena MySQL/Prisma tidak mendukung list tipe primitif.
+/// - FTS pakai @@fulltext bawaan Prisma (MySQL FULLTEXT index) menggantikan tsvector Postgres
+///   di Bagian 6.4.
+/// - Aturan "max 1 summary published per (paperId,language)" di Bagian 6.4 tidak bisa jadi
+///   partial unique index (MySQL tidak mendukung WHERE di unique index) — diakali lewat
+///   generated column di migrasi manual 0002 (lihat prisma/migrations).
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -161,10 +169,11 @@ enum EnrichmentStatus {
 
 model Paper {
   id                    String   @id @default(uuid())
-  title                 String
+  title                 String   @db.VarChar(500)
   titleLang             String?  @map("title_lang")
   /// HANYA diisi jika lisensi mengizinkan; UI TIDAK BOLEH menampilkan abstractRaw jika policy != full
-  abstractRaw           String?  @map("abstract_raw")
+  /// ADAPTASI MYSQL: @db.Text (bukan default VARCHAR(191)) supaya abstrak panjang tidak terpotong
+  abstractRaw           String?  @map("abstract_raw") @db.Text
   abstractDisplayPolicy AbstractPolicy @default(summary_only) @map("abstract_display_policy") /// default AMAN; PATCH 1: nilai wajib berasal dari deriveAbstractPolicy(), tidak pernah diketik manual
   publishedDate         DateTime? @map("published_date") @db.Date
   language              String?
@@ -174,8 +183,6 @@ model Paper {
   venue                 ApprovedVenue? @relation(fields: [venueId], references: [id])
   venueNameRaw          String?  @map("venue_name_raw")   /// nama venue apa adanya dari sumber (audit)
   venueCountry          String?  @map("venue_country")
-  /// denormalisasi utk filter negara (many-to-many; kolaborasi = banyak negara). Di-derive dari AuthorAffiliation saat seed/ingest.
-  affiliationCountries  String[] @map("affiliation_countries")
   sourceTier            SourceTier @default(tier_3) @map("source_tier")
   tierReason            String?  @map("tier_reason")
   isFoundational        Boolean  @default(false) @map("is_foundational")
@@ -195,6 +202,8 @@ model Paper {
 
   identifiers    PaperIdentifier[]
   titles         PaperTitle[]
+  /// denormalisasi utk filter negara (many-to-many; kolaborasi = banyak negara). Di-derive dari AuthorAffiliation saat seed/ingest.
+  affiliationCountries PaperAffiliationCountry[]
   topics         PaperTopic[]
   paperAuthors   PaperAuthor[]
   affiliations   AuthorAffiliation[]
@@ -211,9 +220,20 @@ model Paper {
   @@index([origin])
   @@index([sourceTier])
   @@index([metadataStatus])
+  /// ADAPTASI MYSQL: menggantikan tsvector+GIN Postgres di Bagian 6.4. MATCH AGAINST(title, abstract_raw)
+  /// tetap mengindeks abstrak meski policy=summary_only — mencari != menampilkan (aturan sama).
+  @@fulltext([title, abstractRaw])
   @@map("papers")
 }
-/// TODO migrasi manual setelah prisma migrate: kolom tsvector FTS + GIN index (lihat Bagian 6.4)
+
+/// ADAPTASI MYSQL — pecahan dari Paper.affiliationCountries (semula String[] di versi Postgres)
+model PaperAffiliationCountry {
+  paperId     String @map("paper_id")
+  paper       Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  countryCode String @map("country_code")
+  @@id([paperId, countryCode])
+  @@map("paper_affiliation_countries")
+}
 
 /// PATCH 2 — judul dwibahasa. Paper.title TETAP ADA sebagai judul primary (denormalisasi utk FTS/sorting);
 /// HARUS sama dengan baris PaperTitle yang isPrimary=true. Enforce di seed & helper penulisan.
@@ -221,7 +241,7 @@ model PaperTitle {
   paperId   String  @map("paper_id")
   paper     Paper   @relation(fields: [paperId], references: [id], onDelete: Cascade)
   language  String                        /// 'id' | 'en' | lainnya
-  title     String
+  title     String  @db.VarChar(500)
   isPrimary Boolean @default(false) @map("is_primary")
 
   @@id([paperId, language])
@@ -259,25 +279,43 @@ model ApprovedVenue {
   /// KUNCI PENCOCOKAN — bukan nama. Minimal satu terisi.
   openalexSourceId  String? @unique @map("openalex_source_id")
   issnL             String? @unique @map("issn_l")
-  arxivCategories   String[] @map("arxiv_categories")
+  arxivCategories   VenueArxivCategory[]
   country           String?
   active            Boolean @default(true)
   papers            Paper[]
   @@map("approved_venues")
 }
 
+/// ADAPTASI MYSQL — pecahan dari ApprovedVenue.arxivCategories (semula String[] di versi Postgres)
+model VenueArxivCategory {
+  venueId  String        @map("venue_id")
+  venue    ApprovedVenue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  category String
+  @@id([venueId, category])
+  @@map("venue_arxiv_categories")
+}
+
 model Institution {
   id                    String  @id @default(uuid())
   name                  String
-  nameVariants          String[] @map("name_variants")
+  nameVariants          InstitutionNameVariant[]
   country               String?
   institutionType       String? @map("institution_type")
   openalexInstitutionId String? @unique @map("openalex_institution_id")
   rorId                 String? @unique @map("ror_id")
-  profileDescription    String? @map("profile_description")
+  profileDescription    String? @map("profile_description") @db.Text
   affiliations          AuthorAffiliation[]
   @@index([country])
   @@map("institutions")
+}
+
+/// ADAPTASI MYSQL — pecahan dari Institution.nameVariants (semula String[] di versi Postgres)
+model InstitutionNameVariant {
+  institutionId String      @map("institution_id")
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  @@id([institutionId, name])
+  @@map("institution_name_variants")
 }
 
 model Author {
@@ -332,9 +370,9 @@ model Summary {
   paperId            String @map("paper_id")
   paper              Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
   language           Lang   @default(id)
-  summaryLayperson   String? @map("summary_layperson")
-  summaryTechnical   String? @map("summary_technical")
-  relevanceIndonesia String? @map("relevance_indonesia")
+  summaryLayperson   String? @map("summary_layperson") @db.Text
+  summaryTechnical   String? @map("summary_technical") @db.Text
+  relevanceIndonesia String? @map("relevance_indonesia") @db.Text
   sourceType         SummarySource @map("source_type")
   provenance         Provenance @default(from_abstract)
   /// SUMBU 2: gerbang editorial ADA DI SINI. Publik hanya melihat status=published.
@@ -365,7 +403,7 @@ model PaperVersion {
   paperId       String @map("paper_id")
   paper         Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
   versionNumber Int    @map("version_number")
-  changedSummary String? @map("changed_summary")
+  changedSummary String? @map("changed_summary") @db.Text
   versionDate   DateTime? @map("version_date") @db.Date
   @@unique([paperId, versionNumber])
   @@map("paper_versions")
@@ -379,7 +417,7 @@ model PaperRelation {
   new             Paper @relation("new", fields: [paperIdNew], references: [id])
   relationType    RelationType @map("relation_type")
   confidenceScore Float? @map("confidence_score")
-  reasoningText   String? @map("reasoning_text")
+  reasoningText   String? @map("reasoning_text") @db.Text
   /// SUMBU 2: publik hanya melihat status=approved
   status          ReviewStatus @default(suggested)
   @@unique([paperIdOld, paperIdNew, relationType])
@@ -392,12 +430,12 @@ model RelevanceScore {
   paper              Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
   computedScore      Int?    @map("computed_score")
   computedStatus     RelevanceStatus @default(too_new_to_score) @map("computed_status")
-  computedReasoning  String? @map("computed_reasoning")
+  computedReasoning  String? @map("computed_reasoning") @db.Text
   /// yang TAMPIL ke publik. NULL = tidak ada badge sama sekali (bukan badge abu-abu).
   publishedStatus    PublishedRelevance? @map("published_status")
-  publishedReasoning String? @map("published_reasoning")
+  publishedReasoning String? @map("published_reasoning") @db.Text
   overrideById       String? @map("override_by")   /// terisi = editor mengunci; recompute dilarang menyentuh published_*
-  overrideReason     String? @map("override_reason")
+  overrideReason     String? @map("override_reason") @db.Text
   @@map("relevance_scores")
 }
 
@@ -438,9 +476,9 @@ model Dispute {
   disputeType      String @map("dispute_type")
   submittedByName  String? @map("submitted_by_name")
   submittedByEmail String? @map("submitted_by_email")
-  argument         String
+  argument         String @db.Text
   status           DisputeStatus @default(open)
-  resolution       String?
+  resolution       String? @db.Text
   createdAt        DateTime @default(now()) @map("created_at")
   @@map("disputes")
 }

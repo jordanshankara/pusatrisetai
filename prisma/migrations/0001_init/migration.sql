@@ -1,440 +1,367 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
+-- CreateTable
+CREATE TABLE `papers` (
+    `id` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(500) NOT NULL,
+    `title_lang` VARCHAR(191) NULL,
+    `abstract_raw` TEXT NULL,
+    `abstract_display_policy` ENUM('full', 'summary_only', 'link_only') NOT NULL DEFAULT 'summary_only',
+    `published_date` DATE NULL,
+    `language` VARCHAR(191) NULL,
+    `origin` ENUM('local', 'international') NOT NULL,
+    `venue_id` VARCHAR(191) NULL,
+    `venue_name_raw` VARCHAR(191) NULL,
+    `venue_country` VARCHAR(191) NULL,
+    `source_tier` ENUM('tier_1', 'tier_2', 'tier_3') NOT NULL DEFAULT 'tier_3',
+    `tier_reason` VARCHAR(191) NULL,
+    `is_foundational` BOOLEAN NOT NULL DEFAULT false,
+    `metadata_status` ENUM('indexed', 'queued_review', 'rejected', 'withdrawn') NOT NULL DEFAULT 'indexed',
+    `inclusion_basis` VARCHAR(191) NULL,
+    `canonical_url` VARCHAR(191) NULL,
+    `license_raw` VARCHAR(191) NULL,
+    `license_normalized` ENUM('cc_by', 'cc_by_sa', 'cc_by_nc', 'cc_by_nc_sa', 'cc0', 'other_open', 'restricted', 'unknown') NOT NULL DEFAULT 'unknown',
+    `affiliation_inferred` BOOLEAN NOT NULL DEFAULT false,
+    `enrichment_status` ENUM('pending', 'enriched_openalex', 'no_doi', 'not_found_openalex', 'failed') NOT NULL DEFAULT 'pending',
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
 
--- CreateEnum
-CREATE TYPE "Origin" AS ENUM ('local', 'international');
-
--- CreateEnum
-CREATE TYPE "SourceTier" AS ENUM ('tier_1', 'tier_2', 'tier_3');
-
--- CreateEnum
-CREATE TYPE "MetadataStatus" AS ENUM ('indexed', 'queued_review', 'rejected', 'withdrawn');
-
--- CreateEnum
-CREATE TYPE "AbstractPolicy" AS ENUM ('full', 'summary_only', 'link_only');
-
--- CreateEnum
-CREATE TYPE "SummaryStatus" AS ENUM ('draft', 'in_review', 'published', 'rejected');
-
--- CreateEnum
-CREATE TYPE "SummarySource" AS ENUM ('manual', 'ai_draft', 'ai_reviewed');
-
--- CreateEnum
-CREATE TYPE "Provenance" AS ENUM ('from_abstract', 'from_fulltext');
-
--- CreateEnum
-CREATE TYPE "Lang" AS ENUM ('id', 'en');
-
--- CreateEnum
-CREATE TYPE "RelationType" AS ENUM ('superseded_by', 'follow_up_same_author', 'related_semantic', 'contradicted_by', 'extended_by');
-
--- CreateEnum
-CREATE TYPE "ReviewStatus" AS ENUM ('suggested', 'approved', 'rejected', 'disputed');
-
--- CreateEnum
-CREATE TYPE "RelevanceStatus" AS ENUM ('too_new_to_score', 'still_relevant', 'needs_update', 'superseded', 'retracted');
-
--- CreateEnum
-CREATE TYPE "PublishedRelevance" AS ENUM ('still_relevant', 'needs_update', 'superseded', 'retracted', 'foundational');
-
--- CreateEnum
-CREATE TYPE "RetractionStatus" AS ENUM ('none', 'retracted', 'expression_of_concern');
-
--- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('admin', 'editor', 'contributor', 'reader');
-
--- CreateEnum
-CREATE TYPE "VenueType" AS ENUM ('conference', 'journal', 'preprint_repo', 'repository');
-
--- CreateEnum
-CREATE TYPE "TagStatus" AS ENUM ('suggested', 'published', 'rejected');
-
--- CreateEnum
-CREATE TYPE "DisputeStatus" AS ENUM ('open', 'in_review', 'accepted', 'rejected');
-
--- CreateEnum
-CREATE TYPE "SubmissionStatus" AS ENUM ('queued', 'in_review', 'approved', 'rejected_spam', 'rejected_predatory', 'rejected_duplicate', 'rejected_no_credentials');
-
--- CreateEnum
-CREATE TYPE "IdType" AS ENUM ('doi', 'arxiv_id', 'openreview_id', 'openalex_id', 'oai_identifier', 'semantic_scholar_id');
-
--- CreateEnum
-CREATE TYPE "License" AS ENUM ('cc_by', 'cc_by_sa', 'cc_by_nc', 'cc_by_nc_sa', 'cc0', 'other_open', 'restricted', 'unknown');
-
--- CreateEnum
-CREATE TYPE "EnrichmentStatus" AS ENUM ('pending', 'enriched_openalex', 'no_doi', 'not_found_openalex', 'failed');
+    INDEX `papers_published_date_idx`(`published_date`),
+    INDEX `papers_origin_idx`(`origin`),
+    INDEX `papers_source_tier_idx`(`source_tier`),
+    INDEX `papers_metadata_status_idx`(`metadata_status`),
+    FULLTEXT INDEX `papers_title_abstract_raw_idx`(`title`, `abstract_raw`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "papers" (
-    "id" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "title_lang" TEXT,
-    "abstract_raw" TEXT,
-    "abstract_display_policy" "AbstractPolicy" NOT NULL DEFAULT 'summary_only',
-    "published_date" DATE,
-    "language" TEXT,
-    "origin" "Origin" NOT NULL,
-    "venue_id" TEXT,
-    "venue_name_raw" TEXT,
-    "venue_country" TEXT,
-    "affiliation_countries" TEXT[],
-    "source_tier" "SourceTier" NOT NULL DEFAULT 'tier_3',
-    "tier_reason" TEXT,
-    "is_foundational" BOOLEAN NOT NULL DEFAULT false,
-    "metadata_status" "MetadataStatus" NOT NULL DEFAULT 'indexed',
-    "inclusion_basis" TEXT,
-    "canonical_url" TEXT,
-    "license_raw" TEXT,
-    "license_normalized" "License" NOT NULL DEFAULT 'unknown',
-    "affiliation_inferred" BOOLEAN NOT NULL DEFAULT false,
-    "enrichment_status" "EnrichmentStatus" NOT NULL DEFAULT 'pending',
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+CREATE TABLE `paper_affiliation_countries` (
+    `paper_id` VARCHAR(191) NOT NULL,
+    `country_code` VARCHAR(191) NOT NULL,
 
-    CONSTRAINT "papers_pkey" PRIMARY KEY ("id")
-);
+    PRIMARY KEY (`paper_id`, `country_code`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "paper_titles" (
-    "paper_id" TEXT NOT NULL,
-    "language" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "is_primary" BOOLEAN NOT NULL DEFAULT false,
+CREATE TABLE `paper_titles` (
+    `paper_id` VARCHAR(191) NOT NULL,
+    `language` VARCHAR(191) NOT NULL,
+    `title` VARCHAR(500) NOT NULL,
+    `is_primary` BOOLEAN NOT NULL DEFAULT false,
 
-    CONSTRAINT "paper_titles_pkey" PRIMARY KEY ("paper_id","language")
-);
-
--- CreateTable
-CREATE TABLE "paper_identifiers" (
-    "id" TEXT NOT NULL,
-    "paper_id" TEXT NOT NULL,
-    "id_type" "IdType" NOT NULL,
-    "id_value" TEXT NOT NULL,
-
-    CONSTRAINT "paper_identifiers_pkey" PRIMARY KEY ("id")
-);
+    PRIMARY KEY (`paper_id`, `language`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "paper_merges" (
-    "surviving_id" TEXT NOT NULL,
-    "merged_id" TEXT NOT NULL,
-    "method" TEXT NOT NULL,
-    "merged_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE `paper_identifiers` (
+    `id` VARCHAR(191) NOT NULL,
+    `paper_id` VARCHAR(191) NOT NULL,
+    `id_type` ENUM('doi', 'arxiv_id', 'openreview_id', 'openalex_id', 'oai_identifier', 'semantic_scholar_id') NOT NULL,
+    `id_value` VARCHAR(191) NOT NULL,
 
-    CONSTRAINT "paper_merges_pkey" PRIMARY KEY ("surviving_id","merged_id")
-);
-
--- CreateTable
-CREATE TABLE "approved_venues" (
-    "id" TEXT NOT NULL,
-    "display_name" TEXT NOT NULL,
-    "venue_type" "VenueType" NOT NULL,
-    "tier" "SourceTier" NOT NULL,
-    "ranking_basis" TEXT,
-    "openalex_source_id" TEXT,
-    "issn_l" TEXT,
-    "arxiv_categories" TEXT[],
-    "country" TEXT,
-    "active" BOOLEAN NOT NULL DEFAULT true,
-
-    CONSTRAINT "approved_venues_pkey" PRIMARY KEY ("id")
-);
+    INDEX `paper_identifiers_paper_id_idx`(`paper_id`),
+    UNIQUE INDEX `paper_identifiers_id_type_id_value_key`(`id_type`, `id_value`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "institutions" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "name_variants" TEXT[],
-    "country" TEXT,
-    "institution_type" TEXT,
-    "openalex_institution_id" TEXT,
-    "ror_id" TEXT,
-    "profile_description" TEXT,
+CREATE TABLE `paper_merges` (
+    `surviving_id` VARCHAR(191) NOT NULL,
+    `merged_id` VARCHAR(191) NOT NULL,
+    `method` VARCHAR(191) NOT NULL,
+    `merged_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    CONSTRAINT "institutions_pkey" PRIMARY KEY ("id")
-);
+    INDEX `paper_merges_merged_id_idx`(`merged_id`),
+    PRIMARY KEY (`surviving_id`, `merged_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "authors" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "orcid_id" TEXT,
-    "openalex_author_id" TEXT,
+CREATE TABLE `approved_venues` (
+    `id` VARCHAR(191) NOT NULL,
+    `display_name` VARCHAR(191) NOT NULL,
+    `venue_type` ENUM('conference', 'journal', 'preprint_repo', 'repository') NOT NULL,
+    `tier` ENUM('tier_1', 'tier_2', 'tier_3') NOT NULL,
+    `ranking_basis` VARCHAR(191) NULL,
+    `openalex_source_id` VARCHAR(191) NULL,
+    `issn_l` VARCHAR(191) NULL,
+    `country` VARCHAR(191) NULL,
+    `active` BOOLEAN NOT NULL DEFAULT true,
 
-    CONSTRAINT "authors_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "paper_authors" (
-    "paper_id" TEXT NOT NULL,
-    "author_id" TEXT NOT NULL,
-    "author_order" INTEGER NOT NULL,
-
-    CONSTRAINT "paper_authors_pkey" PRIMARY KEY ("paper_id","author_id")
-);
+    UNIQUE INDEX `approved_venues_openalex_source_id_key`(`openalex_source_id`),
+    UNIQUE INDEX `approved_venues_issn_l_key`(`issn_l`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "author_affiliations" (
-    "author_id" TEXT NOT NULL,
-    "institution_id" TEXT NOT NULL,
-    "paper_id" TEXT NOT NULL,
+CREATE TABLE `venue_arxiv_categories` (
+    `venue_id` VARCHAR(191) NOT NULL,
+    `category` VARCHAR(191) NOT NULL,
 
-    CONSTRAINT "author_affiliations_pkey" PRIMARY KEY ("author_id","institution_id","paper_id")
-);
-
--- CreateTable
-CREATE TABLE "paper_topics" (
-    "id" TEXT NOT NULL,
-    "paper_id" TEXT NOT NULL,
-    "domain" TEXT,
-    "field" TEXT,
-    "subfield" TEXT,
-    "topic" TEXT,
-    "topic_id" TEXT,
-    "is_primary" BOOLEAN NOT NULL DEFAULT false,
-    "score" DOUBLE PRECISION,
-
-    CONSTRAINT "paper_topics_pkey" PRIMARY KEY ("id")
-);
+    PRIMARY KEY (`venue_id`, `category`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "summaries" (
-    "id" TEXT NOT NULL,
-    "paper_id" TEXT NOT NULL,
-    "language" "Lang" NOT NULL DEFAULT 'id',
-    "summary_layperson" TEXT,
-    "summary_technical" TEXT,
-    "relevance_indonesia" TEXT,
-    "source_type" "SummarySource" NOT NULL,
-    "provenance" "Provenance" NOT NULL DEFAULT 'from_abstract',
-    "status" "SummaryStatus" NOT NULL DEFAULT 'draft',
-    "authored_by" TEXT,
-    "reviewed_by" TEXT,
-    "version" INTEGER NOT NULL DEFAULT 1,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE `institutions` (
+    `id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `country` VARCHAR(191) NULL,
+    `institution_type` VARCHAR(191) NULL,
+    `openalex_institution_id` VARCHAR(191) NULL,
+    `ror_id` VARCHAR(191) NULL,
+    `profile_description` TEXT NULL,
 
-    CONSTRAINT "summaries_pkey" PRIMARY KEY ("id")
-);
+    UNIQUE INDEX `institutions_openalex_institution_id_key`(`openalex_institution_id`),
+    UNIQUE INDEX `institutions_ror_id_key`(`ror_id`),
+    INDEX `institutions_country_idx`(`country`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "citation_stats" (
-    "paper_id" TEXT NOT NULL,
-    "citation_count_total" INTEGER NOT NULL DEFAULT 0,
-    "citation_by_year" JSONB,
-    "fwci" DOUBLE PRECISION,
-    "citation_normalized_percentile" DOUBLE PRECISION,
-    "local_percentile" DOUBLE PRECISION,
-    "retraction_status" "RetractionStatus" NOT NULL DEFAULT 'none',
+CREATE TABLE `institution_name_variants` (
+    `institution_id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
 
-    CONSTRAINT "citation_stats_pkey" PRIMARY KEY ("paper_id")
-);
+    PRIMARY KEY (`institution_id`, `name`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "paper_versions" (
-    "id" TEXT NOT NULL,
-    "paper_id" TEXT NOT NULL,
-    "version_number" INTEGER NOT NULL,
-    "changed_summary" TEXT,
-    "version_date" DATE,
+CREATE TABLE `authors` (
+    `id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `orcid_id` VARCHAR(191) NULL,
+    `openalex_author_id` VARCHAR(191) NULL,
 
-    CONSTRAINT "paper_versions_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "paper_relations" (
-    "id" TEXT NOT NULL,
-    "paper_id_old" TEXT NOT NULL,
-    "paper_id_new" TEXT NOT NULL,
-    "relation_type" "RelationType" NOT NULL,
-    "confidence_score" DOUBLE PRECISION,
-    "reasoning_text" TEXT,
-    "status" "ReviewStatus" NOT NULL DEFAULT 'suggested',
-
-    CONSTRAINT "paper_relations_pkey" PRIMARY KEY ("id")
-);
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "relevance_scores" (
-    "paper_id" TEXT NOT NULL,
-    "computed_score" INTEGER,
-    "computed_status" "RelevanceStatus" NOT NULL DEFAULT 'too_new_to_score',
-    "computed_reasoning" TEXT,
-    "published_status" "PublishedRelevance",
-    "published_reasoning" TEXT,
-    "override_by" TEXT,
-    "override_reason" TEXT,
+CREATE TABLE `paper_authors` (
+    `paper_id` VARCHAR(191) NOT NULL,
+    `author_id` VARCHAR(191) NOT NULL,
+    `author_order` INTEGER NOT NULL,
 
-    CONSTRAINT "relevance_scores_pkey" PRIMARY KEY ("paper_id")
-);
+    PRIMARY KEY (`paper_id`, `author_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "policy_tags" (
-    "id" TEXT NOT NULL,
-    "slug" TEXT NOT NULL,
-    "label_id" TEXT NOT NULL,
-    "label_en" TEXT,
-    "tag_group" TEXT,
-    "active" BOOLEAN NOT NULL DEFAULT true,
+CREATE TABLE `author_affiliations` (
+    `author_id` VARCHAR(191) NOT NULL,
+    `institution_id` VARCHAR(191) NOT NULL,
+    `paper_id` VARCHAR(191) NOT NULL,
 
-    CONSTRAINT "policy_tags_pkey" PRIMARY KEY ("id")
-);
+    PRIMARY KEY (`author_id`, `institution_id`, `paper_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "paper_policy_tags" (
-    "paper_id" TEXT NOT NULL,
-    "tag_id" TEXT NOT NULL,
-    "status" "TagStatus" NOT NULL DEFAULT 'suggested',
+CREATE TABLE `paper_topics` (
+    `id` VARCHAR(191) NOT NULL,
+    `paper_id` VARCHAR(191) NOT NULL,
+    `domain` VARCHAR(191) NULL,
+    `field` VARCHAR(191) NULL,
+    `subfield` VARCHAR(191) NULL,
+    `topic` VARCHAR(191) NULL,
+    `topic_id` VARCHAR(191) NULL,
+    `is_primary` BOOLEAN NOT NULL DEFAULT false,
+    `score` DOUBLE NULL,
 
-    CONSTRAINT "paper_policy_tags_pkey" PRIMARY KEY ("paper_id","tag_id")
-);
-
--- CreateTable
-CREATE TABLE "users" (
-    "id" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
-    "display_name" TEXT,
-    "role" "UserRole" NOT NULL,
-    "active" BOOLEAN NOT NULL DEFAULT true,
-
-    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
-);
+    INDEX `paper_topics_paper_id_idx`(`paper_id`),
+    INDEX `paper_topics_subfield_idx`(`subfield`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "disputes" (
-    "id" TEXT NOT NULL,
-    "paper_id" TEXT NOT NULL,
-    "dispute_type" TEXT NOT NULL,
-    "submitted_by_name" TEXT,
-    "submitted_by_email" TEXT,
-    "argument" TEXT NOT NULL,
-    "status" "DisputeStatus" NOT NULL DEFAULT 'open',
-    "resolution" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE `summaries` (
+    `id` VARCHAR(191) NOT NULL,
+    `paper_id` VARCHAR(191) NOT NULL,
+    `language` ENUM('id', 'en') NOT NULL DEFAULT 'id',
+    `summary_layperson` TEXT NULL,
+    `summary_technical` TEXT NULL,
+    `relevance_indonesia` TEXT NULL,
+    `source_type` ENUM('manual', 'ai_draft', 'ai_reviewed') NOT NULL,
+    `provenance` ENUM('from_abstract', 'from_fulltext') NOT NULL DEFAULT 'from_abstract',
+    `status` ENUM('draft', 'in_review', 'published', 'rejected') NOT NULL DEFAULT 'draft',
+    `authored_by` VARCHAR(191) NULL,
+    `reviewed_by` VARCHAR(191) NULL,
+    `version` INTEGER NOT NULL DEFAULT 1,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    CONSTRAINT "disputes_pkey" PRIMARY KEY ("id")
-);
+    INDEX `summaries_paper_id_language_status_idx`(`paper_id`, `language`, `status`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE "submissions" (
-    "id" TEXT NOT NULL,
-    "submitted_by_name" TEXT,
-    "submitted_by_email" TEXT NOT NULL,
-    "claimed_identifier" TEXT,
-    "paper_id" TEXT,
-    "status" "SubmissionStatus" NOT NULL DEFAULT 'queued',
-    "submitted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE `citation_stats` (
+    `paper_id` VARCHAR(191) NOT NULL,
+    `citation_count_total` INTEGER NOT NULL DEFAULT 0,
+    `citation_by_year` JSON NULL,
+    `fwci` DOUBLE NULL,
+    `citation_normalized_percentile` DOUBLE NULL,
+    `local_percentile` DOUBLE NULL,
+    `retraction_status` ENUM('none', 'retracted', 'expression_of_concern') NOT NULL DEFAULT 'none',
 
-    CONSTRAINT "submissions_pkey" PRIMARY KEY ("id")
-);
+    PRIMARY KEY (`paper_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateIndex
-CREATE INDEX "papers_published_date_idx" ON "papers"("published_date");
+-- CreateTable
+CREATE TABLE `paper_versions` (
+    `id` VARCHAR(191) NOT NULL,
+    `paper_id` VARCHAR(191) NOT NULL,
+    `version_number` INTEGER NOT NULL,
+    `changed_summary` TEXT NULL,
+    `version_date` DATE NULL,
 
--- CreateIndex
-CREATE INDEX "papers_origin_idx" ON "papers"("origin");
+    UNIQUE INDEX `paper_versions_paper_id_version_number_key`(`paper_id`, `version_number`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateIndex
-CREATE INDEX "papers_source_tier_idx" ON "papers"("source_tier");
+-- CreateTable
+CREATE TABLE `paper_relations` (
+    `id` VARCHAR(191) NOT NULL,
+    `paper_id_old` VARCHAR(191) NOT NULL,
+    `paper_id_new` VARCHAR(191) NOT NULL,
+    `relation_type` ENUM('superseded_by', 'follow_up_same_author', 'related_semantic', 'contradicted_by', 'extended_by') NOT NULL,
+    `confidence_score` DOUBLE NULL,
+    `reasoning_text` TEXT NULL,
+    `status` ENUM('suggested', 'approved', 'rejected', 'disputed') NOT NULL DEFAULT 'suggested',
 
--- CreateIndex
-CREATE INDEX "papers_metadata_status_idx" ON "papers"("metadata_status");
+    UNIQUE INDEX `paper_relations_paper_id_old_paper_id_new_relation_type_key`(`paper_id_old`, `paper_id_new`, `relation_type`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateIndex
-CREATE INDEX "paper_identifiers_paper_id_idx" ON "paper_identifiers"("paper_id");
+-- CreateTable
+CREATE TABLE `relevance_scores` (
+    `paper_id` VARCHAR(191) NOT NULL,
+    `computed_score` INTEGER NULL,
+    `computed_status` ENUM('too_new_to_score', 'still_relevant', 'needs_update', 'superseded', 'retracted') NOT NULL DEFAULT 'too_new_to_score',
+    `computed_reasoning` TEXT NULL,
+    `published_status` ENUM('still_relevant', 'needs_update', 'superseded', 'retracted', 'foundational') NULL,
+    `published_reasoning` TEXT NULL,
+    `override_by` VARCHAR(191) NULL,
+    `override_reason` TEXT NULL,
 
--- CreateIndex
-CREATE UNIQUE INDEX "paper_identifiers_id_type_id_value_key" ON "paper_identifiers"("id_type", "id_value");
+    PRIMARY KEY (`paper_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateIndex
-CREATE INDEX "paper_merges_merged_id_idx" ON "paper_merges"("merged_id");
+-- CreateTable
+CREATE TABLE `policy_tags` (
+    `id` VARCHAR(191) NOT NULL,
+    `slug` VARCHAR(191) NOT NULL,
+    `label_id` VARCHAR(191) NOT NULL,
+    `label_en` VARCHAR(191) NULL,
+    `tag_group` VARCHAR(191) NULL,
+    `active` BOOLEAN NOT NULL DEFAULT true,
 
--- CreateIndex
-CREATE UNIQUE INDEX "approved_venues_openalex_source_id_key" ON "approved_venues"("openalex_source_id");
+    UNIQUE INDEX `policy_tags_slug_key`(`slug`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateIndex
-CREATE UNIQUE INDEX "approved_venues_issn_l_key" ON "approved_venues"("issn_l");
+-- CreateTable
+CREATE TABLE `paper_policy_tags` (
+    `paper_id` VARCHAR(191) NOT NULL,
+    `tag_id` VARCHAR(191) NOT NULL,
+    `status` ENUM('suggested', 'published', 'rejected') NOT NULL DEFAULT 'suggested',
 
--- CreateIndex
-CREATE UNIQUE INDEX "institutions_openalex_institution_id_key" ON "institutions"("openalex_institution_id");
+    PRIMARY KEY (`paper_id`, `tag_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateIndex
-CREATE UNIQUE INDEX "institutions_ror_id_key" ON "institutions"("ror_id");
+-- CreateTable
+CREATE TABLE `users` (
+    `id` VARCHAR(191) NOT NULL,
+    `email` VARCHAR(191) NOT NULL,
+    `display_name` VARCHAR(191) NULL,
+    `role` ENUM('admin', 'editor', 'contributor', 'reader') NOT NULL,
+    `active` BOOLEAN NOT NULL DEFAULT true,
 
--- CreateIndex
-CREATE INDEX "institutions_country_idx" ON "institutions"("country");
+    UNIQUE INDEX `users_email_key`(`email`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateIndex
-CREATE INDEX "paper_topics_paper_id_idx" ON "paper_topics"("paper_id");
+-- CreateTable
+CREATE TABLE `disputes` (
+    `id` VARCHAR(191) NOT NULL,
+    `paper_id` VARCHAR(191) NOT NULL,
+    `dispute_type` VARCHAR(191) NOT NULL,
+    `submitted_by_name` VARCHAR(191) NULL,
+    `submitted_by_email` VARCHAR(191) NULL,
+    `argument` TEXT NOT NULL,
+    `status` ENUM('open', 'in_review', 'accepted', 'rejected') NOT NULL DEFAULT 'open',
+    `resolution` TEXT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
--- CreateIndex
-CREATE INDEX "paper_topics_subfield_idx" ON "paper_topics"("subfield");
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- CreateIndex
-CREATE INDEX "summaries_paper_id_language_status_idx" ON "summaries"("paper_id", "language", "status");
+-- CreateTable
+CREATE TABLE `submissions` (
+    `id` VARCHAR(191) NOT NULL,
+    `submitted_by_name` VARCHAR(191) NULL,
+    `submitted_by_email` VARCHAR(191) NOT NULL,
+    `claimed_identifier` VARCHAR(191) NULL,
+    `paper_id` VARCHAR(191) NULL,
+    `status` ENUM('queued', 'in_review', 'approved', 'rejected_spam', 'rejected_predatory', 'rejected_duplicate', 'rejected_no_credentials') NOT NULL DEFAULT 'queued',
+    `submitted_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
--- CreateIndex
-CREATE UNIQUE INDEX "paper_versions_paper_id_version_number_key" ON "paper_versions"("paper_id", "version_number");
-
--- CreateIndex
-CREATE UNIQUE INDEX "paper_relations_paper_id_old_paper_id_new_relation_type_key" ON "paper_relations"("paper_id_old", "paper_id_new", "relation_type");
-
--- CreateIndex
-CREATE UNIQUE INDEX "policy_tags_slug_key" ON "policy_tags"("slug");
-
--- CreateIndex
-CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
-ALTER TABLE "papers" ADD CONSTRAINT "papers_venue_id_fkey" FOREIGN KEY ("venue_id") REFERENCES "approved_venues"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `papers` ADD CONSTRAINT `papers_venue_id_fkey` FOREIGN KEY (`venue_id`) REFERENCES `approved_venues`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_titles" ADD CONSTRAINT "paper_titles_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `paper_affiliation_countries` ADD CONSTRAINT `paper_affiliation_countries_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_identifiers" ADD CONSTRAINT "paper_identifiers_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `paper_titles` ADD CONSTRAINT `paper_titles_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_merges" ADD CONSTRAINT "paper_merges_surviving_id_fkey" FOREIGN KEY ("surviving_id") REFERENCES "papers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `paper_identifiers` ADD CONSTRAINT `paper_identifiers_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_authors" ADD CONSTRAINT "paper_authors_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `paper_merges` ADD CONSTRAINT `paper_merges_surviving_id_fkey` FOREIGN KEY (`surviving_id`) REFERENCES `papers`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_authors" ADD CONSTRAINT "paper_authors_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `venue_arxiv_categories` ADD CONSTRAINT `venue_arxiv_categories_venue_id_fkey` FOREIGN KEY (`venue_id`) REFERENCES `approved_venues`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "author_affiliations" ADD CONSTRAINT "author_affiliations_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `institution_name_variants` ADD CONSTRAINT `institution_name_variants_institution_id_fkey` FOREIGN KEY (`institution_id`) REFERENCES `institutions`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "author_affiliations" ADD CONSTRAINT "author_affiliations_institution_id_fkey" FOREIGN KEY ("institution_id") REFERENCES "institutions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `paper_authors` ADD CONSTRAINT `paper_authors_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "author_affiliations" ADD CONSTRAINT "author_affiliations_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `paper_authors` ADD CONSTRAINT `paper_authors_author_id_fkey` FOREIGN KEY (`author_id`) REFERENCES `authors`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_topics" ADD CONSTRAINT "paper_topics_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `author_affiliations` ADD CONSTRAINT `author_affiliations_author_id_fkey` FOREIGN KEY (`author_id`) REFERENCES `authors`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "summaries" ADD CONSTRAINT "summaries_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `author_affiliations` ADD CONSTRAINT `author_affiliations_institution_id_fkey` FOREIGN KEY (`institution_id`) REFERENCES `institutions`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "citation_stats" ADD CONSTRAINT "citation_stats_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `author_affiliations` ADD CONSTRAINT `author_affiliations_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_versions" ADD CONSTRAINT "paper_versions_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `paper_topics` ADD CONSTRAINT `paper_topics_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_relations" ADD CONSTRAINT "paper_relations_paper_id_old_fkey" FOREIGN KEY ("paper_id_old") REFERENCES "papers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `summaries` ADD CONSTRAINT `summaries_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_relations" ADD CONSTRAINT "paper_relations_paper_id_new_fkey" FOREIGN KEY ("paper_id_new") REFERENCES "papers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `citation_stats` ADD CONSTRAINT `citation_stats_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "relevance_scores" ADD CONSTRAINT "relevance_scores_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `paper_versions` ADD CONSTRAINT `paper_versions_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_policy_tags" ADD CONSTRAINT "paper_policy_tags_paper_id_fkey" FOREIGN KEY ("paper_id") REFERENCES "papers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `paper_relations` ADD CONSTRAINT `paper_relations_paper_id_old_fkey` FOREIGN KEY (`paper_id_old`) REFERENCES `papers`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "paper_policy_tags" ADD CONSTRAINT "paper_policy_tags_tag_id_fkey" FOREIGN KEY ("tag_id") REFERENCES "policy_tags"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `paper_relations` ADD CONSTRAINT `paper_relations_paper_id_new_fkey` FOREIGN KEY (`paper_id_new`) REFERENCES `papers`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `relevance_scores` ADD CONSTRAINT `relevance_scores_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `paper_policy_tags` ADD CONSTRAINT `paper_policy_tags_paper_id_fkey` FOREIGN KEY (`paper_id`) REFERENCES `papers`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `paper_policy_tags` ADD CONSTRAINT `paper_policy_tags_tag_id_fkey` FOREIGN KEY (`tag_id`) REFERENCES `policy_tags`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
