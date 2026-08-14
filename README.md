@@ -108,10 +108,31 @@ ada di kontrak eksplisit Bagian 5 (yang eksplisit hanya `GET /api/admin/queue` u
 Submission) — ditambahkan mengikuti pola endpoint review lain karena tab "Sanggahan" & "Submission"
 di Bagian 7 tetap butuh aksi Approve/Reject.
 
-**Catatan data**: seluruh 66 paper adalah data seed buatan (Tahap 2), bukan hasil fetch dari
-OpenAlex/arXiv sungguhan — DOI berpola `10.99999/pusatriset-demo-xxx` menandakan ini. Script fetch
-data riset asli dari OpenAlex (Bagian 9, `scripts/fetch-openalex.ts`) **belum dibuat** di prototype
-ini — opsional, disebut di `ENABLE_OPENALEX_FETCH` pada `.env.example`.
+**Catatan data**: 66 paper dari `db:seed` adalah data buatan (Tahap 2) — DOI berpola
+`10.99999/pusatriset-demo-xxx` menandakan ini, dipakai supaya semua kasus uji editorial (badge,
+sensor abstrak, merge, dll) selalu ada dan deterministik. Untuk riset **sungguhan**, jalankan
+script opsional Bagian 9 (lihat bawah).
+
+## Bagian 9 — Fetch data riset asli dari OpenAlex (opsional)
+
+`scripts/fetch-openalex.ts` mengambil works nyata dari OpenAlex (filter: institusi Indonesia +
+bidang Computer Science) dan meng-insert-nya sebagai `Paper` baru — origin `local`, sourceTier
+`tier_2`, **tanpa summary/relevance** (beda sengaja dari paper seed: mendemokan kontras antara
+riset yang sudah dikurasi editor vs baru masuk mentah). Idempotent — jalan berkali-kali tidak
+menduplikasi (dicek via `openalex_id`/`doi` di `paper_identifiers`).
+
+```bash
+# di .env: ENABLE_OPENALEX_FETCH=true
+npm run fetch:openalex
+```
+
+Diverifikasi langsung terhadap API OpenAlex sungguhan: 100/100 works berhasil di-insert (0 gagal),
+jalan ulang kedua kali → 100/100 di-skip (idempoten terbukti). Paper hasil fetch dicek tayang benar
+di `GET /api/v1/papers/:id` publik — `summary: null`, `relevance: null`, `enrichmentStatus` tetap
+tidak bocor ke respons publik.
+
+Nonaktif secara default (`ENABLE_OPENALEX_FETCH=false`) — kalau dijalankan tanpa flag ini, script
+keluar segera tanpa menyentuh database sama sekali.
 
 ## Contoh pemakaian API
 

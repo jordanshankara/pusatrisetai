@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "fetch:openalex": "tsx scripts/fetch-openalex.ts",
     "test": "vitest run"
   },
   "prisma": {
