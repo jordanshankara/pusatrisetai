@@ -26,18 +26,22 @@ Dari `.env` / `.env.example`:
 - Email: `admin@pusatriset.ai`
 - Password: `changeme-local-only`
 
-Belum ada halaman login (menyusul Tahap 5). Untuk sesi admin, login lewat API:
+Buka [http://localhost:3000/admin](http://localhost:3000/admin) — otomatis redirect ke
+`/admin/login` bila belum login. Sesi disimpan sebagai cookie token yang ditandatangani
+(HMAC-SHA256, stateless — lihat catatan di `src/lib/auth/admin-session.ts`; sengaja BUKAN
+session-store in-memory karena Turbopack dev mengisolasi module graph per-route, jadi `Map`
+in-memory ternyata tidak reliable sebagai session store bahkan di single-process dev).
+
+Login juga bisa lewat API langsung (curl/Postman):
 ```bash
 curl -c cookie.txt -X POST http://localhost:3000/api/admin/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@pusatriset.ai","password":"changeme-local-only"}'
 
-# lalu pakai cookie.txt untuk semua request /api/admin/*
 curl -b cookie.txt http://localhost:3000/api/admin/queue
 ```
-`/api/admin/login` dan `/api/admin/logout` **bukan** bagian dari kontrak Bagian 5 — murni util dev
-untuk menguji endpoint admin sebelum ada halaman login sungguhan (cookie-session in-memory, lihat
-`src/lib/auth/admin-session.ts`).
+`/api/admin/login` dan `/api/admin/logout` **bukan** bagian dari kontrak Bagian 5 — util dev,
+tapi sekarang juga dipakai oleh halaman `/admin/login` sungguhan.
 
 ## Kasus uji merge/redirect
 
@@ -58,7 +62,9 @@ Seed membuat satu kasus **paper merge** untuk menguji redirect di halaman `/rise
       (`src/lib/queries/public.ts`), FTS MySQL, BibTeX, rate limit, auth admin cookie-session.
 - [x] **Tahap 4** — halaman publik (Home, Katalog, Detail, Dashboard, Metodologi) — diverifikasi
       visual lewat browser terhadap data seed asli.
-- [ ] **Tahap 5** — admin panel (UI) + halaman login.
+- [x] **Tahap 5** — admin panel (`/admin`) + halaman login (`/admin/login`) — diverifikasi
+      end-to-end lewat curl (login → antrean → approve/reject tiap tab → tayang di API publik
+      tanpa restart → reset ulang lewat `db:seed`).
 
 ## Acceptance checklist (Bagian 2.3 BuildSpec)
 
@@ -66,7 +72,7 @@ Seed membuat satu kasus **paper merge** untuk menguji redirect di halaman `/rise
 2. [x] Katalog + search "diabetes" + filter kombinasi — **terverifikasi visual**: `/katalog?q=diabetes` menampilkan hasil tepat; filter subfield+hideSuperseded teruji (7 hasil, superseded tersembunyi).
 3. [x] Halaman detail paper `superseded` — **terverifikasi visual**: badge "Sudah Digantikan", kartu "Riset Penerus" dengan alasan & link ke paper 2024.
 4. [x] Abstrak tersensor sesuai `abstractDisplayPolicy` — **terverifikasi di API & UI**: paper `restricted` menampilkan pesan pengganti, bukan `abstractRaw`.
-5. [x] Login admin → antrean → approve summary draft → tayang tanpa restart — **terverifikasi end-to-end** lewat curl (lihat riwayat commit Tahap 3).
+5. [x] Login admin → antrean → approve summary draft → tayang tanpa restart — **terverifikasi end-to-end** lewat halaman `/admin` (login → tab Ringkasan → edit+approve → `GET /api/v1/papers/:id` langsung menampilkan teks baru, tanpa restart server).
 6. [x] `GET /api/v1/papers/:id/export?format=bibtex` menghasilkan BibTeX valid, tombol "Ekspor BibTeX" di halaman detail — **terverifikasi**.
 7. [x] Redirect merge — **terverifikasi di halaman**: `/riset/{merged-uuid}` redirect permanen ke paper survivor.
 8. [x] `npm run build` sukses tanpa type error.
@@ -87,6 +93,25 @@ Filter Katalog memakai native HTML `<form method="GET">` dengan auto-submit `onC
 component tipis `FilterForm.tsx`) — state filter sepenuhnya di URL (shareable), tab Detail
 (Data Asli / Ringkasan) dan switcher bahasa (id/en) juga URL-driven, bukan client state, supaya
 konsisten dengan pola yang sama dan tetap SEO-friendly.
+
+## Arsitektur Tahap 5
+
+Panel admin (`/admin`) adalah satu client component (`AdminQueueClient.tsx`) yang fetch
+`GET /api/admin/queue` sekali di mount, lalu approve/reject tiap item memanggil endpoint review
+masing-masing dan **menghapus item dari state lokal** (bukan re-fetch ulang seluruh antrean) —
+supaya terasa instan tanpa refresh manual, sesuai Bagian 7. `/admin/page.tsx` (Server Component)
+mengecek cookie sesi dan `redirect("/admin/login")` bila tidak valid, sebelum me-render client
+component sama sekali (proteksi di server, bukan cuma UI).
+
+Dua endpoint review (`/api/admin/disputes/:id/review`, `/api/admin/submissions/:id/review`) tidak
+ada di kontrak eksplisit Bagian 5 (yang eksplisit hanya `GET /api/admin/queue` utk Sanggahan &
+Submission) — ditambahkan mengikuti pola endpoint review lain karena tab "Sanggahan" & "Submission"
+di Bagian 7 tetap butuh aksi Approve/Reject.
+
+**Catatan data**: seluruh 66 paper adalah data seed buatan (Tahap 2), bukan hasil fetch dari
+OpenAlex/arXiv sungguhan — DOI berpola `10.99999/pusatriset-demo-xxx` menandakan ini. Script fetch
+data riset asli dari OpenAlex (Bagian 9, `scripts/fetch-openalex.ts`) **belum dibuat** di prototype
+ini — opsional, disebut di `ENABLE_OPENALEX_FETCH` pada `.env.example`.
 
 ## Contoh pemakaian API
 

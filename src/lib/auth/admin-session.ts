@@ -1,10 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
- * Auth admin prototype (Bagian 3: "cookie-session sederhana"). Session disimpan in-memory —
- * cukup untuk single-process dev/prototype, TIDAK untuk deployment multi-instance/serverless.
- * Login UI (halaman /admin/login) menyusul di tahap berikutnya; endpoint login/logout di sini
- * murni util dev untuk keperluan curl/Postman, bukan bagian dari kontrak Bagian 5.
+ * Auth admin prototype (Bagian 3: "cookie-session sederhana"). Token stateless yang
+ * ditandatangani (HMAC-SHA256) — BUKAN Map in-memory (dicoba awalnya, gagal: Turbopack dev
+ * mengisolasi module graph per-route, jadi Map di satu request handler tidak selalu sama
+ * instance-nya dengan handler lain, sesi jadi hilang sewaktu-waktu). Pendekatan stateless ini
+ * juga lebih siap untuk multi-instance/serverless dibanding Map. Login UI di /admin/login;
+ * endpoint login/logout murni util dev untuk curl/Postman, bukan bagian dari kontrak Bagian 5.
  */
 export const ADMIN_SESSION_COOKIE = "pusatriset_admin_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 8; // 8 jam
@@ -14,26 +16,38 @@ interface AdminSession {
   expiresAt: number;
 }
 
-const sessions = new Map<string, AdminSession>();
+function secret(): string {
+  return process.env.ADMIN_PASSWORD ?? "dev-only-insecure-secret";
+}
+
+function sign(payload: string): string {
+  return createHmac("sha256", secret()).update(payload).digest("hex");
+}
 
 export function createAdminSession(email: string): { token: string; expiresAt: number } {
-  const token = randomUUID();
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessions.set(token, { email, expiresAt });
+  const payloadB64 = Buffer.from(`${email}:${expiresAt}`, "utf8").toString("base64url");
+  const token = `${payloadB64}.${sign(payloadB64)}`;
   return { token, expiresAt };
 }
 
 export function getAdminSession(token: string | undefined | null): AdminSession | null {
   if (!token) return null;
-  const session = sessions.get(token);
-  if (!session) return null;
-  if (session.expiresAt < Date.now()) {
-    sessions.delete(token);
-    return null;
-  }
-  return session;
+  const [payloadB64, signature] = token.split(".");
+  if (!payloadB64 || !signature) return null;
+
+  const expected = sign(payloadB64);
+  const sigBuf = Buffer.from(signature);
+  const expectedBuf = Buffer.from(expected);
+  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) return null;
+
+  const [email, expiresAtStr] = Buffer.from(payloadB64, "base64url").toString("utf8").split(":");
+  const expiresAt = Number(expiresAtStr);
+  if (!email || !Number.isFinite(expiresAt) || expiresAt < Date.now()) return null;
+
+  return { email, expiresAt };
 }
 
-export function destroyAdminSession(token: string | undefined | null): void {
-  if (token) sessions.delete(token);
+export function destroyAdminSession(_token: string | undefined | null): void {
+  // Stateless — tidak ada state server untuk dihapus; cookie dihapus di route /api/admin/logout.
 }
