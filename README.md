@@ -169,3 +169,80 @@ curl "http://localhost:3000/api/v1/stats/trends"
 curl -X POST "http://localhost:3000/api/v1/disputes" -H "Content-Type: application/json" \
   -d '{"paperId":"...","disputeType":"relevance_badge","email":"a@b.com","argument":"..."}'
 ```
+
+## Round 2 — Bagian A: Desain visual editorial
+
+Palet "editorial hangat" (krem/parchment + biru sebagai warna khas, bukan emas seperti
+referensi) — semua lewat CSS variable di `src/app/globals.css`, tidak ada hex baru langsung di
+komponen. Token utama: `--bg-page`/`--bg-card`/`--bg-card-alt` (latar), `--brand-blue-900/700/100`
+(aksen biru), `--text-primary/secondary/muted` (teks), `--badge-*` (5 warna badge relevansi,
+SENGAJA terpisah dari palet dekoratif). Font judul pakai Source Serif 4 (`font-serif`), body tetap
+sans default. Admin panel SENGAJA dikecualikan dari gaya ini — tetap netral/putih supaya jelas beda
+"produk publik" vs "alat kerja internal" (lihat wrapper `bg-background` di `AdminQueueClient.tsx`).
+
+**Catatan teknis penting**: Tailwind v4 cascade layers — deklarasi CSS polos di luar `@layer`
+(mis. `body { background: ... }`) otomatis MENANG atas `@layer utilities` Tailwind berapa pun
+spesifisitasnya. Body/`a` base styles di `globals.css` dibungkus `@layer base` supaya tidak diam-diam
+mengalahkan utility class `bg-page`/`text-primary` yang dipasang di `layout.tsx`.
+
+## Round 2 — Bagian B: Backfill ringkasan & keterkaitan (LLM)
+
+`scripts/backfill-content.ts` (B.2-B.4) mengisi `summaryLayperson`/`summaryTechnical`/
+`relevanceIndonesia` untuk paper yang belum punya summary published bahasa Indonesia.
+`scripts/backfill-relations.ts` (B.5) mencari "Riset Serupa"/"Riset Penerus" antar paper lewat
+overlap subbidang + kata kunci judul, lalu satu panggilan LLM per paper untuk verdict akhir.
+**Wajib jalan berurutan** — B.5 butuh paper yang sudah lolos tahap ringkasan, jangan bersamaan.
+
+```bash
+npx tsx scripts/backfill-content.ts [--limit N]     # B.2-B.4, resume-safe
+npx tsx scripts/backfill-relations.ts [--limit N]   # B.5, jalankan SETELAH backfill-content selesai
+```
+
+**Provider LLM** (`scripts/lib/llm-client.ts`, dua tingkat, otomatis fallback):
+1. Gemini API (`GEMINI_API_KEYS`, dipisah koma untuk rotasi multi-key) — model utama lalu fallback
+   kalau kuota harian model utama habis di semua key.
+2. OpenRouter (`OPENROUTER_API_KEY`) — rotasi 3 model gratis, dipakai kalau Gemini benar-benar habis.
+
+**Pengecualian sadar KHUSUS demo** (B.0, lihat `BRIEF_Round2_Design_dan_Backfill_Konten.md`):
+hasil backfill langsung `status='published'`/`'approved'`, TAPI `sourceType` selalu `'ai_draft'`
+(bukan `'ai_reviewed'`) — jujur secara data bahwa ini belum ditinjau editor manusia. Alur produksi
+normal (draft → antre admin → approve) tidak dihapus, cuma dilompati untuk run ini.
+
+**Validasi wajib sebelum publish (kode, bukan LLM)** — kalau gagal, status tetap `draft` dan masuk
+`docs/backfill-flagged.csv` untuk direview manusia, TIDAK PERNAH dipaksa publish:
+1. Setiap angka yang diklaim LLM di `extractedNumbers` dicek balik ke abstrak asli.
+2. Teks dicek tidak terpotong di tengah kalimat/kata (ditemukan lewat spot-check manual — model
+   fallback kadang memotong respons meski JSON-nya tetap valid secara sintaks) dan tidak
+   mengandung karakter skrip lain yang nyasar (mis. Han/Cyrillic, glitch model).
+
+Laporan hasil run: `docs/backfill-report.md`. Hasil terakhir: 63 ringkasan published + 11 di-flag
+(dari 126 paper), 43 relasi tersimpan (40 related_semantic + 3 successor-type).
+
+## Deploy: TiDB Cloud + Vercel
+
+Prototype ini di-deploy dengan **TiDB Cloud** (MySQL-compatible, free tier lebih lega dari
+PlanetScale yang sudah tidak gratis lagi sejak April 2024) sebagai database, **Vercel** untuk hosting
+app-nya.
+
+**Adaptasi skema untuk TiDB** (lihat catatan di kepala `prisma/schema.prisma` dan
+`prisma/migrations/0003_tidb_deploy_notes/migration.sql`):
+- `@@fulltext` (MySQL FULLTEXT multi-kolom) DIBUANG — TiDB tidak mendukung itu. Search di
+  `listPapers()` pindah ke Prisma `contains` biasa (portable MySQL lokal ↔ TiDB).
+- `relationMode = "prisma"` — TiDB (arsitektur mirip Vitess-style) tidak menjamin FOREIGN KEY
+  constraint DB-level di semua tier; relasi dienforce di level Prisma. Field FK dapat `@@index`
+  eksplisit sebagai gantinya (kalau tidak, query lambat tanpa index dari FK constraint).
+- Kolom generated `summaries.published_key` (constraint "max 1 summary published per
+  paperId+language", lihat migrasi 0002) TIDAK BISA ditambah lewat `ALTER TABLE` di TiDB (beda dari
+  MySQL asli) — harus ada sejak `CREATE TABLE`. Detail lengkap di migrasi 0003.
+
+**Migrasi data satu-kali** dari MySQL lokal ke TiDB: `scripts/migrate-to-tidb.ts` (butuh
+`LOCAL_DATABASE_URL` dan `DATABASE_URL` terisi di `.env`, keduanya MySQL-compatible — salin 23
+tabel murni lewat driver `mysql2`, tidak lewat Prisma karena satu Prisma Client cuma bicara ke
+satu datasource).
+
+**Environment variables yang perlu diisi di Vercel** (Project Settings → Environment Variables):
+`DATABASE_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `GEMINI_API_KEYS`, `GEMINI_MODEL_PRIMARY`,
+`GEMINI_MODEL_FALLBACK`, `OPENROUTER_API_KEY`, `ENABLE_OPENALEX_FETCH=false`, `OPENALEX_MAILTO`
+— nilainya sama seperti `.env` lokal (JANGAN commit `.env` ke git, sudah di-gitignore).
+`postinstall: prisma generate` di `package.json` memastikan Prisma Client ter-generate ulang untuk
+runtime Linux Vercel (binary engine beda dari Windows lokal) setiap build.

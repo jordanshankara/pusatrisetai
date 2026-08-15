@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  /* Palet netral — TETAP dipakai apa adanya oleh Admin Panel (Bagian A.4: admin
+     sengaja TIDAK ikut gaya editorial hangat, harus tetap functional/netral). */
   --background: #ffffff;
   --surface: #f8fafc;
   --foreground: #0f172a;
@@ -9,16 +11,48 @@
   --accent: #1e3a5f;
   --accent-hover: #16304d;
 
-  --badge-still-relevant-bg: #dcfce7;
-  --badge-still-relevant-fg: #166534;
-  --badge-needs-update-bg: #fef9c3;
-  --badge-needs-update-fg: #854d0e;
-  --badge-superseded-bg: #ffedd5;
-  --badge-superseded-fg: #9a3412;
-  --badge-retracted-bg: #fee2e2;
-  --badge-retracted-fg: #991b1b;
-  --badge-foundational-bg: #dbeafe;
-  --badge-foundational-fg: #1e40af;
+  /* === Palet editorial (BRIEF Round 2, Bagian A.1) — dipakai halaman publik === */
+
+  /* Latar & permukaan — hangat, bukan putih steril */
+  --bg-page: #F7F3EA;
+  --bg-card: #FFFFFF;
+  --bg-card-alt: #F0EBE0;
+  --border-warm: #E4DDCC;
+  --shadow-card: 0 2px 8px rgba(36, 31, 22, 0.04);
+
+  /* Biru — warna khas PusatRiset.ai, pengganti peran emas di referensi */
+  --brand-blue-900: #0C2D4A;
+  --brand-blue-700: #14508A;
+  --brand-blue-100: #E3EEF7;
+
+  /* Teks editorial */
+  --text-primary: #241F16;
+  --text-secondary: #6B6355;
+  --text-muted: #746650; /* dinaikkan dari draf awal A.1 (#9C9484, kontras 2.72 gagal AA) ke 5.04:1 — masih nada krem hangat, bukan abu-abu dingin */
+
+  /* Badge relevansi — kode makna, SENGAJA terpisah dari palet dekoratif krem/biru
+     di atas. Nilai persis sesuai A.1, jangan ikut nada krem/biru. */
+  --badge-still-relevant: #2F7A4F;
+  --badge-needs-update: #B98A1E;
+  --badge-superseded: #C9701F;
+  --badge-retracted: #B8352E;
+  --badge-foundational: var(--brand-blue-700);
+
+  /* Alias -fg supaya komponen yang sudah memakai pola var(--badge-x-fg) (RelevanceBadge,
+     RetractedBanner, dst) otomatis ikut nilai token A.1 di atas tanpa perlu diganti satu-satu. */
+  --badge-still-relevant-fg: var(--badge-still-relevant);
+  --badge-needs-update-fg: var(--badge-needs-update);
+  --badge-superseded-fg: var(--badge-superseded);
+  --badge-retracted-fg: var(--badge-retracted);
+  --badge-foundational-fg: var(--badge-foundational);
+
+  /* Tint latar (-bg) diturunkan dari warna A.1 masing-masing badge — tetap satu
+     sumber kebenaran per badge, bukan hex baru yang lepas dari token. */
+  --badge-still-relevant-bg: #E1F0E6;
+  --badge-needs-update-bg: #F7EEDA;
+  --badge-superseded-bg: #F8E3D2;
+  --badge-retracted-bg: #F8DEDC;
+  --badge-foundational-bg: var(--brand-blue-100);
 }
 
 @theme inline {
@@ -29,15 +63,34 @@
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+
+  --color-page: var(--bg-page);
+  --color-card: var(--bg-card);
+  --color-card-alt: var(--bg-card-alt);
+  --color-warm: var(--border-warm);
+  --color-brand-900: var(--brand-blue-900);
+  --color-brand-700: var(--brand-blue-700);
+  --color-brand-100: var(--brand-blue-100);
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-muted-warm: var(--text-muted);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-source-serif);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-}
+/* Bagian A: dipindah ke @layer base — deklarasi CSS polos di luar @layer punya
+   prioritas cascade LEBIH TINGGI daripada @layer utilities milik Tailwind (termasuk
+   class bg-page/text-primary yang dipasang langsung di <body> pada layout.tsx),
+   jadi warna body tidak pernah kalah/menang secara tidak sengaja terhadap utility class. */
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+  }
 
-a {
-  color: inherit;
+  a {
+    color: inherit;
+  }
 }

@@ -6,10 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "postinstall": "prisma generate",
     "lint": "eslint",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "fetch:openalex": "tsx scripts/fetch-openalex.ts",
+    "backfill:content": "tsx scripts/backfill-content.ts",
+    "backfill:relations": "tsx scripts/backfill-relations.ts",
     "test": "vitest run"
   },
   "prisma": {
@@ -29,6 +32,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
+    "mysql2": "^3.23.3",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",

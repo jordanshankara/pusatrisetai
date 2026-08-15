@@ -1,18 +1,30 @@
-/// ADAPTASI MYSQL/XAMPP (menyimpang dari BUILD_SPEC Bagian 3 yang menetapkan PostgreSQL 16):
+/// ADAPTASI MYSQL (menyimpang dari BUILD_SPEC Bagian 3 yang menetapkan PostgreSQL 16), dan
+/// sejak deploy ke TiDB Cloud disesuaikan lagi supaya portable MySQL lokal <-> TiDB:
 /// - 3 kolom String[] (affiliationCountries, arxivCategories, nameVariants) dipecah jadi tabel
 ///   junction terpisah karena MySQL/Prisma tidak mendukung list tipe primitif.
-/// - FTS pakai @@fulltext bawaan Prisma (MySQL FULLTEXT index) menggantikan tsvector Postgres
-///   di Bagian 6.4.
+/// - FTS: awalnya pakai @@fulltext (MySQL FULLTEXT index) menggantikan tsvector Postgres di
+///   Bagian 6.4, TAPI DIBUANG karena TiDB Cloud tidak mendukung FULLTEXT multi-kolom seperti
+///   MySQL asli. Pencarian di listPapers() sekarang pakai Prisma `contains` biasa (lihat
+///   src/lib/services/papers.ts) — kurang presisi dari FTS asli tapi portable di kedua target.
 /// - Aturan "max 1 summary published per (paperId,language)" di Bagian 6.4 tidak bisa jadi
 ///   partial unique index (MySQL tidak mendukung WHERE di unique index) — diakali lewat
 ///   generated column di migrasi manual 0002 (lihat prisma/migrations).
+/// - relationMode = "prisma": PlanetScale/TiDB (arsitektur mirip Vitess-style sharding) tidak
+///   menjamin dukungan FOREIGN KEY constraint di semua tier — relasi dienforce di level Prisma
+///   (application-level), bukan DB-level. Field FK WAJIB @@index eksplisit (tidak lagi otomatis
+///   dari FK constraint).
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  /// PlanetScale (Vitess) tidak mendukung FOREIGN KEY constraint di level database — relasi
+  /// dienforce di level Prisma (application-level), bukan DB-level. Ini pola resmi yang
+  /// direkomendasikan Prisma untuk PlanetScale. Field relasi (fooId) WAJIB punya @@index
+  /// eksplisit karena tidak lagi otomatis dapat index dari FK constraint.
+  relationMode = "prisma"
 }
 
 enum Origin {
@@ -220,9 +232,10 @@ model Paper {
   @@index([origin])
   @@index([sourceTier])
   @@index([metadataStatus])
-  /// ADAPTASI MYSQL: menggantikan tsvector+GIN Postgres di Bagian 6.4. MATCH AGAINST(title, abstract_raw)
-  /// tetap mengindeks abstrak meski policy=summary_only — mencari != menampilkan (aturan sama).
-  @@fulltext([title, abstractRaw])
+  @@index([venueId])
+  /// ADAPTASI: @@fulltext (MySQL FULLTEXT multi-kolom) DIBUANG — TiDB Cloud (target deploy) tidak
+  /// mendukung FULLTEXT INDEX multi-kolom seperti MySQL asli. Pencarian di listPapers() dipindah
+  /// ke Prisma `contains` (LIKE) biasa, portable di MySQL lokal maupun TiDB tanpa raw SQL.
   @@map("papers")
 }
 
@@ -335,6 +348,7 @@ model PaperAuthor {
   paper  Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
   author Author @relation(fields: [authorId], references: [id], onDelete: Cascade)
   @@id([paperId, authorId])
+  @@index([authorId])
   @@map("paper_authors")
 }
 
@@ -346,6 +360,8 @@ model AuthorAffiliation {
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   paper       Paper       @relation(fields: [paperId], references: [id], onDelete: Cascade)
   @@id([authorId, institutionId, paperId])
+  @@index([institutionId])
+  @@index([paperId])
   @@map("author_affiliations")
 }
 
@@ -421,6 +437,7 @@ model PaperRelation {
   /// SUMBU 2: publik hanya melihat status=approved
   status          ReviewStatus @default(suggested)
   @@unique([paperIdOld, paperIdNew, relationType])
+  @@index([paperIdNew])
   @@map("paper_relations")
 }
 /// enforce di kode: paperIdOld !== paperIdNew (tolak di API/seed)
@@ -458,6 +475,7 @@ model PaperPolicyTag {
   /// SUMBU 2: publik hanya melihat status=published
   status  TagStatus @default(suggested)
   @@id([paperId, tagId])
+  @@index([tagId])
   @@map("paper_policy_tags")
 }
 

@@ -33,6 +33,7 @@ export default function AdminLoginPage() {
   }
 
   return (
+    <div className="min-h-screen w-full bg-background text-foreground">
     <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center px-4 py-10 sm:px-6">
       <h1 className="text-xl font-bold text-foreground">Login Admin</h1>
       <p className="mt-1 text-sm text-muted">Masuk untuk meninjau antrean editorial.</p>
@@ -75,6 +76,7 @@ export default function AdminLoginPage() {
           {submitting ? "Masuk..." : "Masuk"}
         </button>
       </form>
+    </div>
     </div>
   );
 }

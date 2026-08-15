@@ -49,7 +49,7 @@ export function DisputeModal({ paperId }: { paperId: string }) {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="text-sm text-accent hover:underline">
+      <button onClick={() => setOpen(true)} className="text-sm text-brand-700 hover:underline">
         Keberatan dengan konten ini?
       </button>
 

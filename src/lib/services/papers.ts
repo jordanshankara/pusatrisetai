@@ -82,12 +82,18 @@ export async function listPapers(params: ListPapersParams): Promise<ListPapersRe
 
   let searchOrder: string[] | null = null;
   if (params.q) {
-    const rows = await prisma.$queryRaw<Array<{ id: string; score: number }>>`
-      SELECT id, MATCH(title, abstract_raw) AGAINST(${params.q} IN NATURAL LANGUAGE MODE) AS score
-      FROM papers
-      WHERE MATCH(title, abstract_raw) AGAINST(${params.q} IN NATURAL LANGUAGE MODE)
-    `;
-    searchOrder = rows.sort((a, b) => b.score - a.score).map((r) => r.id);
+    // ADAPTASI: MySQL FULLTEXT MATCH...AGAINST dibuang (TiDB Cloud, target deploy, tidak
+    // mendukung FULLTEXT multi-kolom seperti MySQL asli) — pakai `contains` biasa yang portable
+    // di MySQL lokal maupun TiDB. Ranking sederhana di kode: match di judul > match di abstrak saja.
+    const rows = await prisma.paper.findMany({
+      where: { OR: [{ title: { contains: params.q } }, { abstractRaw: { contains: params.q } }] },
+      select: { id: true, title: true },
+    });
+    const q = params.q.toLowerCase();
+    searchOrder = rows
+      .map((r) => ({ id: r.id, score: r.title.toLowerCase().includes(q) ? 2 : 1 }))
+      .sort((a, b) => b.score - a.score)
+      .map((r) => r.id);
     if (searchOrder.length === 0) {
       return emptyResult(params.page, params.perPage);
     }
@@ -175,6 +181,7 @@ export interface PaperDetail {
   relevance: { publishedStatus: string | null; publishedReasoning: string | null } | null;
   policyTags: string[];
   successors: Array<{ relationType: string; reasoningText: string | null; paper: { id: string; title: string; publishedDate: Date | null } }>;
+  related: Array<{ reasoningText: string | null; paper: { id: string; title: string; publishedDate: Date | null } }>;
   versions: Array<{ versionNumber: number; changedSummary: string | null; versionDate: Date | null }>;
   citationStats: { citationCountTotal: number; fwci: number | null; retractionStatus: string } | null;
 }
@@ -209,6 +216,17 @@ export async function getPaperDetail(id: string, lang: "id" | "en"): Promise<Pap
     if (merge) return { type: "redirect", survivingId: merge.survivingId };
     return { type: "not_found" };
   }
+
+  // "Riset Serupa" (related_semantic) — query terpisah karena disimpan searah (old->new) oleh
+  // script backfill B.5, tapi maknanya simetris. Dicek dari KEDUA arah supaya tidak bergantung
+  // paper mana yang diproses lebih dulu saat backfill.
+  const relatedRows = await prisma.paperRelation.findMany({
+    where: { status: "approved", relationType: "related_semantic", OR: [{ paperIdOld: paper.id }, { paperIdNew: paper.id }] },
+    include: {
+      old: { select: { id: true, title: true, publishedDate: true } },
+      new: { select: { id: true, title: true, publishedDate: true } },
+    },
+  });
 
   const authors = paper.paperAuthors.map((pa) => ({
     name: pa.author.name,
@@ -251,6 +269,10 @@ export async function getPaperDetail(id: string, lang: "id" | "en"): Promise<Pap
       reasoningText: rel.reasoningText,
       paper: { id: rel.new.id, title: rel.new.title, publishedDate: rel.new.publishedDate },
     })),
+    related: relatedRows.map((rel) => {
+      const other = rel.paperIdOld === paper.id ? rel.new : rel.old;
+      return { reasoningText: rel.reasoningText, paper: { id: other.id, title: other.title, publishedDate: other.publishedDate } };
+    }),
     versions: paper.versions.map((v) => ({ versionNumber: v.versionNumber, changedSummary: v.changedSummary, versionDate: v.versionDate })),
     citationStats: paper.citationStats
       ? { citationCountTotal: paper.citationStats.citationCountTotal, fwci: paper.citationStats.fwci, retractionStatus: paper.citationStats.retractionStatus }

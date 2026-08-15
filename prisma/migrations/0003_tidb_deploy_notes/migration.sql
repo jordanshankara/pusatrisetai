@@ -1,0 +1,42 @@
+-- CATATAN, BUKAN migrasi otomatis — target deploy (TiDB Cloud) disiapkan lewat `prisma db push`
+-- (bukan `prisma migrate deploy`), karena Prisma db push tidak jalankan migrations/ folder ini.
+-- File ini didokumentasikan supaya kalau perlu provisioning ulang dari nol, langkahnya jelas:
+--
+-- 1. `prisma db push` (dari schema.prisma saat ini) — membuat semua tabel KECUALI kolom
+--    generated `summaries.published_key`, karena TiDB TIDAK mendukung
+--    "Adding generated stored column through ALTER TABLE" (beda dari MySQL asli yang
+--    mengizinkan itu — makanya migrasi 0002 di history lokal pakai ALTER TABLE, TAPI itu
+--    TIDAK JALAN di TiDB). Kolom generated harus ada SEJAK CREATE TABLE.
+-- 2. Setelah db push, jalankan manual (lihat scripts/migrate-to-tidb.ts atau eksekusi langsung):
+--
+--    DROP TABLE summaries;
+--    CREATE TABLE summaries (
+--      id varchar(191) NOT NULL,
+--      paper_id varchar(191) NOT NULL,
+--      language enum('id','en') NOT NULL DEFAULT 'id',
+--      summary_layperson text DEFAULT NULL,
+--      summary_technical text DEFAULT NULL,
+--      relevance_indonesia text DEFAULT NULL,
+--      source_type enum('manual','ai_draft','ai_reviewed') NOT NULL,
+--      provenance enum('from_abstract','from_fulltext') NOT NULL DEFAULT 'from_abstract',
+--      status enum('draft','in_review','published','rejected') NOT NULL DEFAULT 'draft',
+--      authored_by varchar(191) DEFAULT NULL,
+--      reviewed_by varchar(191) DEFAULT NULL,
+--      version int NOT NULL DEFAULT 1,
+--      created_at datetime(3) NOT NULL DEFAULT current_timestamp(3),
+--      published_key varchar(300) GENERATED ALWAYS AS (
+--        case when status = 'published' then concat(paper_id,':',language) else NULL end
+--      ) STORED,
+--      PRIMARY KEY (id),
+--      UNIQUE KEY ux_summary_published (published_key),
+--      KEY summaries_paper_id_language_status_idx (paper_id, language, status)
+--    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--
+-- 3. Baru jalankan `scripts/migrate-to-tidb.ts` untuk salin data (script ini menghindari kolom
+--    generated saat INSERT — DB yang hitung sendiri).
+--
+-- Perbedaan lain dari MySQL lokal (lihat catatan di kepala prisma/schema.prisma):
+-- - @@fulltext DIBUANG (TiDB tidak dukung FULLTEXT multi-kolom) — pencarian pindah ke Prisma
+--   `contains` di src/lib/services/papers.ts.
+-- - relationMode = "prisma" (TiDB/PlanetScale-style tidak menjamin FOREIGN KEY constraint) —
+--   field FK dapat @@index eksplisit sebagai gantinya.

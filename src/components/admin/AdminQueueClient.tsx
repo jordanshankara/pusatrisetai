@@ -145,19 +145,23 @@ export function AdminQueueClient({ adminEmail }: { adminEmail: string }) {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-        <p className="text-sm text-muted">Memuat antrean...</p>
+      <div className="min-h-screen w-full bg-background text-foreground">
+        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+          <p className="text-sm text-muted">Memuat antrean...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-        <p className="text-sm text-[var(--badge-retracted-fg)]">{error ?? "Data tidak tersedia."}</p>
-        <button onClick={loadQueue} className="mt-3 rounded-md bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover">
-          Coba lagi
-        </button>
+      <div className="min-h-screen w-full bg-background text-foreground">
+        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+          <p className="text-sm text-[var(--badge-retracted-fg)]">{error ?? "Data tidak tersedia."}</p>
+          <button onClick={loadQueue} className="mt-3 rounded-md bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover">
+            Coba lagi
+          </button>
+        </div>
       </div>
     );
   }
@@ -171,6 +175,7 @@ export function AdminQueueClient({ adminEmail }: { adminEmail: string }) {
   };
 
   return (
+    <div className="min-h-screen w-full bg-background text-foreground">
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="flex items-center justify-between">
         <div>
@@ -317,6 +322,7 @@ export function AdminQueueClient({ adminEmail }: { adminEmail: string }) {
       </section>
 
       {toast ? <Toast message={toast} /> : null}
+    </div>
     </div>
   );
 }

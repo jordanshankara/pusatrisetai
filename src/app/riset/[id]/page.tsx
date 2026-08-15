@@ -61,25 +61,25 @@ export default async function PaperDetailPage({ params, searchParams }: { params
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <nav className="mb-4 text-sm text-muted">
-        <Link href="/katalog" className="hover:text-accent">
+      <nav className="mb-4 text-sm text-secondary">
+        <Link href="/katalog" className="hover:text-brand-700">
           Katalog
         </Link>
         <span className="mx-1.5">/</span>
-        <span className="text-foreground">{paper.title.length > 60 ? `${paper.title.slice(0, 60)}...` : paper.title}</span>
+        <span className="text-primary">{paper.title.length > 60 ? `${paper.title.slice(0, 60)}...` : paper.title}</span>
       </nav>
 
       {isRetracted ? <RetractedBanner reasoning={paper.relevance?.publishedReasoning} /> : null}
 
-      <h1 className="text-2xl font-bold leading-tight text-foreground sm:text-3xl">
+      <h1 className="font-serif text-2xl font-bold leading-tight text-brand-900 sm:text-3xl">
         <OriginFlag origin={paper.origin} /> {paper.title}
       </h1>
-      {secondaryTitle ? <p className="mt-1 text-base italic text-muted">{secondaryTitle.title}</p> : null}
+      {secondaryTitle ? <p className="mt-1 text-base italic text-secondary">{secondaryTitle.title}</p> : null}
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-secondary">
         <span>
           {paper.authors.length > 0 ? (
-            <span className="cursor-default text-foreground">{paper.authors.map((a) => a.name).join(", ")}</span>
+            <span className="cursor-default text-primary">{paper.authors.map((a) => a.name).join(", ")}</span>
           ) : (
             "Penulis tidak diketahui"
           )}
@@ -90,20 +90,20 @@ export default async function PaperDetailPage({ params, searchParams }: { params
       </div>
 
       {paper.affiliationInferred ? (
-        <p className="mt-1 text-xs text-muted">⚑ Afiliasi institusi merupakan perkiraan (belum dikonfirmasi penulis)</p>
+        <p className="mt-1 text-xs text-muted-warm">⚑ Afiliasi institusi merupakan perkiraan (belum dikonfirmasi penulis)</p>
       ) : null}
 
       {(paper.relevance?.publishedStatus && paper.relevance.publishedStatus !== "retracted") || paper.isFoundational ? (
-        <div className="mt-5 rounded-lg border border-border bg-surface p-4">
+        <div className="mt-5 rounded-[14px] border border-warm bg-card-alt p-4">
           <RelevanceBadge status={paper.relevance?.publishedStatus} size="lg" />
-          {paper.relevance?.publishedReasoning ? <p className="mt-2 text-sm text-foreground">{paper.relevance.publishedReasoning}</p> : null}
+          {paper.relevance?.publishedReasoning ? <p className="mt-2 text-sm text-primary">{paper.relevance.publishedReasoning}</p> : null}
         </div>
       ) : null}
 
       {paper.policyTags.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-1.5">
           {paper.policyTags.map((slug) => (
-            <span key={slug} className="rounded-full bg-surface px-2.5 py-1 text-xs text-muted">
+            <span key={slug} className="rounded-full bg-brand-100 px-2.5 py-1 text-xs text-brand-700">
               {POLICY_TAG_LABELS[slug] ?? slug}
             </span>
           ))}
@@ -112,30 +112,44 @@ export default async function PaperDetailPage({ params, searchParams }: { params
 
       {paper.successors.length > 0 ? (
         <div className="mt-6 space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">Riset Penerus</h2>
+          <h2 className="text-sm font-semibold text-primary">Riset Penerus</h2>
           {paper.successors.map((s, i) => (
-            <div key={i} className="rounded-lg border border-border p-4">
-              <p className="text-xs font-medium text-accent">{RELATION_LABELS[s.relationType] ?? s.relationType}</p>
-              <Link href={`/riset/${s.paper.id}`} className="mt-1 block font-medium text-foreground hover:text-accent hover:underline">
+            <div key={i} className="rounded-[14px] border border-warm bg-card p-4 shadow-[var(--shadow-card)]">
+              <p className="text-xs font-medium text-brand-700">{RELATION_LABELS[s.relationType] ?? s.relationType}</p>
+              <Link href={`/riset/${s.paper.id}`} className="mt-1 block font-medium text-primary hover:text-brand-700 hover:underline">
                 {s.paper.title} {s.paper.publishedDate ? `(${formatYearId(s.paper.publishedDate)})` : ""}
               </Link>
-              {s.reasoningText ? <p className="mt-1 text-sm text-muted">{s.reasoningText}</p> : null}
+              {s.reasoningText ? <p className="mt-1 text-sm text-secondary">{s.reasoningText}</p> : null}
             </div>
           ))}
         </div>
       ) : null}
 
-      <div className="mt-8 border-b border-border">
+      {paper.related.length > 0 ? (
+        <div className="mt-6 space-y-3">
+          <h2 className="text-sm font-semibold text-primary">Riset Serupa</h2>
+          {paper.related.map((r, i) => (
+            <div key={i} className="rounded-[14px] border border-warm bg-card-alt p-4">
+              <Link href={`/riset/${r.paper.id}`} className="block font-medium text-primary hover:text-brand-700 hover:underline">
+                {r.paper.title} {r.paper.publishedDate ? `(${formatYearId(r.paper.publishedDate)})` : ""}
+              </Link>
+              {r.reasoningText ? <p className="mt-1 text-sm text-secondary">{r.reasoningText}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-8 border-b border-warm">
         <nav className="flex gap-6">
           <Link
             href={`/riset/${id}?tab=data${lang === "en" ? "&lang=en" : ""}`}
-            className={`border-b-2 pb-3 text-sm font-medium ${tab === "data" ? "border-accent text-accent" : "border-transparent text-muted hover:text-foreground"}`}
+            className={`border-b-2 pb-3 text-sm font-medium ${tab === "data" ? "border-brand-700 text-brand-700" : "border-transparent text-secondary hover:text-primary"}`}
           >
             Data Asli
           </Link>
           <Link
             href={`/riset/${id}?tab=ringkasan${lang === "en" ? "&lang=en" : ""}`}
-            className={`border-b-2 pb-3 text-sm font-medium ${tab === "ringkasan" ? "border-accent text-accent" : "border-transparent text-muted hover:text-foreground"}`}
+            className={`border-b-2 pb-3 text-sm font-medium ${tab === "ringkasan" ? "border-brand-700 text-brand-700" : "border-transparent text-secondary hover:text-primary"}`}
           >
             Ringkasan &amp; Relevansi
           </Link>
@@ -145,11 +159,11 @@ export default async function PaperDetailPage({ params, searchParams }: { params
       {tab === "data" ? (
         <div className="mt-6 space-y-6">
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-foreground">Abstrak</h2>
+            <h2 className="mb-2 text-sm font-semibold text-primary">Abstrak</h2>
             {paper.abstract ? (
-              <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">{paper.abstract}</p>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-primary">{paper.abstract}</p>
             ) : (
-              <p className="text-sm italic text-muted">
+              <p className="text-sm italic text-secondary">
                 Abstrak tidak ditampilkan karena kebijakan lisensi — baca di sumber resmi →
               </p>
             )}
@@ -157,15 +171,15 @@ export default async function PaperDetailPage({ params, searchParams }: { params
 
           {paper.identifiers.length > 0 ? (
             <div>
-              <h2 className="mb-2 text-sm font-semibold text-foreground">Identifier</h2>
+              <h2 className="mb-2 text-sm font-semibold text-primary">Identifier</h2>
               <ul className="space-y-1 text-sm">
                 {paper.identifiers.map((idf, i) => {
                   const url = identifierUrl(idf.idType, idf.idValue);
                   return (
                     <li key={i}>
-                      <span className="text-muted">{IDENTIFIER_LABELS[idf.idType] ?? idf.idType}: </span>
+                      <span className="text-secondary">{IDENTIFIER_LABELS[idf.idType] ?? idf.idType}: </span>
                       {url ? (
-                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-brand-700 hover:underline">
                           {idf.idValue}
                         </a>
                       ) : (
@@ -187,7 +201,7 @@ export default async function PaperDetailPage({ params, searchParams }: { params
                   href={sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+                  className="rounded-md bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-900"
                 >
                   Buka Sumber Resmi
                 </a>
@@ -196,7 +210,7 @@ export default async function PaperDetailPage({ params, searchParams }: { params
             <a
               href={`/api/v1/papers/${id}/export?format=bibtex`}
               download={`${id}.bib`}
-              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-surface"
+              className="rounded-md border border-warm px-4 py-2 text-sm font-medium text-primary hover:bg-card-alt"
             >
               Ekspor BibTeX
             </a>
@@ -204,13 +218,13 @@ export default async function PaperDetailPage({ params, searchParams }: { params
 
           {paper.versions.length > 1 ? (
             <div>
-              <h2 className="mb-2 text-sm font-semibold text-foreground">Riwayat Versi</h2>
-              <ul className="space-y-2 border-l-2 border-border pl-4">
+              <h2 className="mb-2 text-sm font-semibold text-primary">Riwayat Versi</h2>
+              <ul className="space-y-2 border-l-2 border-warm pl-4">
                 {paper.versions.map((v) => (
                   <li key={v.versionNumber} className="text-sm">
-                    <span className="font-medium text-foreground">v{v.versionNumber}</span>
-                    {v.versionDate ? <span className="text-muted"> · {formatDateId(v.versionDate)}</span> : null}
-                    {v.changedSummary ? <p className="text-muted">{v.changedSummary}</p> : null}
+                    <span className="font-medium text-primary">v{v.versionNumber}</span>
+                    {v.versionDate ? <span className="text-secondary"> · {formatDateId(v.versionDate)}</span> : null}
+                    {v.changedSummary ? <p className="text-secondary">{v.changedSummary}</p> : null}
                   </li>
                 ))}
               </ul>
@@ -222,13 +236,13 @@ export default async function PaperDetailPage({ params, searchParams }: { params
           <div className="flex gap-2 text-sm">
             <Link
               href={`/riset/${id}?tab=ringkasan`}
-              className={`rounded px-3 py-1 ${lang === "id" ? "bg-accent text-white" : "border border-border text-muted hover:text-foreground"}`}
+              className={`rounded px-3 py-1 ${lang === "id" ? "bg-brand-700 text-white" : "border border-warm text-secondary hover:text-primary"}`}
             >
               Indonesia
             </Link>
             <Link
               href={`/riset/${id}?tab=ringkasan&lang=en`}
-              className={`rounded px-3 py-1 ${lang === "en" ? "bg-accent text-white" : "border border-border text-muted hover:text-foreground"}`}
+              className={`rounded px-3 py-1 ${lang === "en" ? "bg-brand-700 text-white" : "border border-warm text-secondary hover:text-primary"}`}
             >
               English
             </Link>
@@ -237,27 +251,27 @@ export default async function PaperDetailPage({ params, searchParams }: { params
           {paper.summary ? (
             <>
               <div>
-                <h2 className="mb-2 text-sm font-semibold text-foreground">Ringkasan Sederhana</h2>
-                <p className="text-sm leading-relaxed text-foreground">{paper.summary.summaryLayperson}</p>
+                <h2 className="mb-2 text-sm font-semibold text-primary">Ringkasan Sederhana</h2>
+                <p className="text-sm leading-relaxed text-primary">{paper.summary.summaryLayperson}</p>
               </div>
               <div>
-                <h2 className="mb-2 text-sm font-semibold text-foreground">Ringkasan Teknis</h2>
-                <p className="text-sm leading-relaxed text-foreground">{paper.summary.summaryTechnical}</p>
+                <h2 className="mb-2 text-sm font-semibold text-primary">Ringkasan Teknis</h2>
+                <p className="text-sm leading-relaxed text-primary">{paper.summary.summaryTechnical}</p>
               </div>
               <div>
-                <h2 className="mb-2 text-sm font-semibold text-foreground">Relevansi untuk Indonesia</h2>
-                <p className="text-sm leading-relaxed text-foreground">{paper.summary.relevanceIndonesia}</p>
+                <h2 className="mb-2 text-sm font-semibold text-primary">Relevansi untuk Indonesia</h2>
+                <p className="text-sm leading-relaxed text-primary">{paper.summary.relevanceIndonesia}</p>
               </div>
-              <p className="text-xs text-muted">
+              <p className="text-xs text-muted-warm">
                 {paper.summary.provenance === "from_full_text" ? "Dibuat dari teks lengkap" : "Dibuat dari abstrak"} — ringkasan dibantu AI, ditinjau editor
                 sebelum tayang.
               </p>
             </>
           ) : (
-            <p className="text-sm italic text-muted">Ringkasan dalam bahasa ini belum tersedia.</p>
+            <p className="text-sm italic text-secondary">Ringkasan dalam bahasa ini belum tersedia.</p>
           )}
 
-          <div className="border-t border-border pt-4">
+          <div className="border-t border-warm pt-4">
             <DisputeModal paperId={paper.id} />
           </div>
         </div>

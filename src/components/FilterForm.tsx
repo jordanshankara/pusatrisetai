@@ -42,11 +42,11 @@ export function FilterForm({
   subfieldOptions,
 }: FilterFormProps) {
   return (
-    <form method="GET" action="/katalog" className="space-y-6 text-sm">
+    <form method="GET" action="/katalog" className="space-y-6 text-sm text-primary">
       {q ? <input type="hidden" name="q" value={q} /> : null}
 
       <fieldset>
-        <legend className="mb-2 font-semibold text-foreground">Asal Riset</legend>
+        <legend className="mb-2 font-semibold text-primary">Asal Riset</legend>
         <div className="space-y-1.5">
           {[
             { value: "", label: "Semua" },
@@ -62,7 +62,7 @@ export function FilterForm({
       </fieldset>
 
       <fieldset>
-        <legend className="mb-2 font-semibold text-foreground">Rentang Tahun</legend>
+        <legend className="mb-2 font-semibold text-primary">Rentang Tahun</legend>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -70,36 +70,36 @@ export function FilterForm({
             defaultValue={yearFrom}
             onBlur={autoSubmit}
             placeholder="Dari"
-            className="w-full rounded border border-border px-2 py-1"
+            className="w-full rounded border border-warm bg-card px-2 py-1"
           />
-          <span className="text-muted">—</span>
+          <span className="text-muted-warm">—</span>
           <input
             type="number"
             name="yearTo"
             defaultValue={yearTo}
             onBlur={autoSubmit}
             placeholder="Sampai"
-            className="w-full rounded border border-border px-2 py-1"
+            className="w-full rounded border border-warm bg-card px-2 py-1"
           />
         </div>
       </fieldset>
 
       <fieldset>
-        <legend className="mb-2 font-semibold text-foreground">Subbidang</legend>
+        <legend className="mb-2 font-semibold text-primary">Subbidang</legend>
         <div className="space-y-1.5">
           {subfieldOptions.map((opt) => (
             <label key={opt.subfield} className="flex items-center gap-2">
               <input type="checkbox" name="subfield" value={opt.subfield} defaultChecked={subfields.includes(opt.subfield)} onChange={autoSubmit} />
               {opt.subfield}
-              <span className="text-muted">({opt.count})</span>
+              <span className="text-muted-warm">({opt.count})</span>
             </label>
           ))}
         </div>
       </fieldset>
 
       <fieldset>
-        <legend className="mb-2 font-semibold text-foreground">Badge Relevansi</legend>
-        <select name="relevance" defaultValue={relevance ?? ""} onChange={autoSubmit} className="w-full rounded border border-border px-2 py-1.5">
+        <legend className="mb-2 font-semibold text-primary">Badge Relevansi</legend>
+        <select name="relevance" defaultValue={relevance ?? ""} onChange={autoSubmit} className="w-full rounded border border-warm bg-card px-2 py-1.5">
           {RELEVANCE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
@@ -109,8 +109,8 @@ export function FilterForm({
       </fieldset>
 
       <fieldset>
-        <legend className="mb-2 font-semibold text-foreground">Tag Kebijakan</legend>
-        <select name="policyTag" defaultValue={policyTag ?? ""} onChange={autoSubmit} className="w-full rounded border border-border px-2 py-1.5">
+        <legend className="mb-2 font-semibold text-primary">Tag Kebijakan</legend>
+        <select name="policyTag" defaultValue={policyTag ?? ""} onChange={autoSubmit} className="w-full rounded border border-warm bg-card px-2 py-1.5">
           <option value="">Semua</option>
           {POLICY_TAGS.map((tag) => (
             <option key={tag.slug} value={tag.slug}>
@@ -120,7 +120,7 @@ export function FilterForm({
         </select>
       </fieldset>
 
-      <div className="space-y-2 border-t border-border pt-4">
+      <div className="space-y-2 border-t border-warm pt-4">
         <label className="flex items-center gap-2">
           <input type="checkbox" name="hideSuperseded" value="true" defaultChecked={hideSuperseded} onChange={autoSubmit} />
           Sembunyikan yang sudah digantikan
@@ -132,11 +132,11 @@ export function FilterForm({
       </div>
 
       <noscript>
-        <button type="submit" className="w-full rounded-md bg-accent px-4 py-2 text-white">
+        <button type="submit" className="w-full rounded-md bg-brand-700 px-4 py-2 text-white">
           Terapkan Filter
         </button>
       </noscript>
-      <a href="/katalog" className="block text-center text-accent hover:underline">
+      <a href="/katalog" className="block text-center text-brand-700 hover:underline">
         Reset semua filter
       </a>
     </form>

@@ -14,9 +14,9 @@ function authorsLine(preview: string[], count: number): string {
 
 export function PaperCard({ paper }: { paper: PaperListItem }) {
   return (
-    <article className="rounded-lg border border-border bg-background p-5 transition hover:border-accent/40 hover:shadow-sm">
+    <article className="rounded-[14px] border border-warm bg-card p-5 shadow-[var(--shadow-card)] transition hover:border-brand-700/40">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <Link href={`/riset/${paper.id}`} className="text-base font-semibold leading-snug text-foreground hover:text-accent hover:underline">
+        <Link href={`/riset/${paper.id}`} className="text-base font-semibold leading-snug text-primary hover:text-brand-700 hover:underline">
           <OriginFlag origin={paper.origin} /> {paper.title}
         </Link>
         <RelevanceBadge status={paper.relevanceBadge} />
@@ -24,7 +24,7 @@ export function PaperCard({ paper }: { paper: PaperListItem }) {
 
       {paper.relevanceBadge === "retracted" ? <div className="mt-1"><RetractedBanner compact /></div> : null}
 
-      <p className="mt-2 text-sm text-muted">
+      <p className="mt-2 text-sm text-secondary">
         {authorsLine(paper.authorsPreview, paper.authorCount)}
         {paper.venueDisplayName ? ` · ${paper.venueDisplayName}` : ""}
         {paper.publishedDate ? ` · ${formatYearId(paper.publishedDate)}` : ""}
@@ -33,7 +33,7 @@ export function PaperCard({ paper }: { paper: PaperListItem }) {
       {paper.policyTags.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {paper.policyTags.map((slug) => (
-            <span key={slug} className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">
+            <span key={slug} className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-700">
               {POLICY_TAG_LABELS[slug] ?? slug}
             </span>
           ))}

@@ -76,15 +76,15 @@ export default async function KatalogPage({ searchParams }: { searchParams: Prom
           name="q"
           defaultValue={q}
           placeholder="Cari judul, topik, atau kata kunci riset..."
-          className="flex-1 rounded-md border border-border px-4 py-2.5 text-sm focus:border-accent focus:outline-none"
+          className="flex-1 rounded-md border border-warm bg-card px-4 py-2.5 text-sm focus:border-brand-700 focus:outline-none"
         />
-        <button type="submit" className="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-accent-hover">
+        <button type="submit" className="rounded-md bg-brand-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-900">
           Cari
         </button>
       </form>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]">
-        <aside className="order-2 lg:order-1">
+        <aside className="order-2 rounded-[14px] border border-warm bg-card-alt p-4 lg:order-1">
           <FilterForm
             q={q}
             origin={origin}
@@ -100,12 +100,12 @@ export default async function KatalogPage({ searchParams }: { searchParams: Prom
         </aside>
 
         <div className="order-1 lg:order-2">
-          <p className="mb-4 text-sm text-muted">
+          <p className="mb-4 text-sm text-secondary">
             {result.total.toLocaleString("id-ID")} riset ditemukan
           </p>
 
           {result.data.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted">
+            <div className="rounded-lg border border-dashed border-warm p-12 text-center text-secondary">
               Tidak ada hasil — coba longgarkan filter.
             </div>
           ) : (

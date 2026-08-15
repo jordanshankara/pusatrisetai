@@ -10,19 +10,19 @@ export function Pagination({ page, perPage, total, buildHref }: { page: number; 
   return (
     <nav className="mt-8 flex items-center justify-center gap-4 text-sm">
       {prevDisabled ? (
-        <span className="text-muted">← Sebelumnya</span>
+        <span className="text-muted-warm">← Sebelumnya</span>
       ) : (
-        <Link href={buildHref(page - 1)} className="text-accent hover:underline">
+        <Link href={buildHref(page - 1)} className="text-brand-700 hover:underline">
           ← Sebelumnya
         </Link>
       )}
-      <span className="text-muted">
+      <span className="text-secondary">
         Halaman {page} dari {totalPages}
       </span>
       {nextDisabled ? (
-        <span className="text-muted">Selanjutnya →</span>
+        <span className="text-muted-warm">Selanjutnya →</span>
       ) : (
-        <Link href={buildHref(page + 1)} className="text-accent hover:underline">
+        <Link href={buildHref(page + 1)} className="text-brand-700 hover:underline">
           Selanjutnya →
         </Link>
       )}
