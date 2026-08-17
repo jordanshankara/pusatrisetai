@@ -84,14 +84,44 @@ export async function listPapers(params: ListPapersParams): Promise<ListPapersRe
   if (params.q) {
     // ADAPTASI: MySQL FULLTEXT MATCH...AGAINST dibuang (TiDB Cloud, target deploy, tidak
     // mendukung FULLTEXT multi-kolom seperti MySQL asli) — pakai `contains` biasa yang portable
-    // di MySQL lokal maupun TiDB. Ranking sederhana di kode: match di judul > match di abstrak saja.
+    // di MySQL lokal maupun TiDB.
+    //
+    // PATCH: dulu mencocokkan SELURUH query sebagai satu frasa persis (mis. "AI untuk
+    // pendidikan" harus muncul utuh di judul/abstrak) — hampir tidak pernah cocok untuk query
+    // natural multi-kata. Sekarang dipecah per kata (buang stopword umum ID/EN), cocok kalau
+    // SALAH SATU kata muncul (OR), diranking berdasarkan berapa banyak kata yang cocok + bobot
+    // lebih tinggi kalau cocok di judul dibanding cuma di abstrak.
+    const STOPWORDS = new Set([
+      "untuk", "dan", "yang", "di", "ke", "dari", "pada", "atau", "dengan", "dalam", "ini", "itu", "adalah", "sebagai",
+      "for", "and", "the", "of", "in", "on", "or", "with", "a", "an", "to", "is",
+    ]);
+    const words = Array.from(
+      new Set(
+        params.q
+          .toLowerCase()
+          .split(/\s+/)
+          .map((w) => w.trim())
+          .filter((w) => w.length >= 2 && !STOPWORDS.has(w))
+      )
+    );
+    const effectiveWords = words.length > 0 ? words : [params.q.toLowerCase().trim()].filter(Boolean);
+
     const rows = await prisma.paper.findMany({
-      where: { OR: [{ title: { contains: params.q } }, { abstractRaw: { contains: params.q } }] },
-      select: { id: true, title: true },
+      where: { OR: effectiveWords.flatMap((w) => [{ title: { contains: w } }, { abstractRaw: { contains: w } }]) },
+      select: { id: true, title: true, abstractRaw: true },
     });
-    const q = params.q.toLowerCase();
     searchOrder = rows
-      .map((r) => ({ id: r.id, score: r.title.toLowerCase().includes(q) ? 2 : 1 }))
+      .map((r) => {
+        const titleLower = r.title.toLowerCase();
+        const abstractLower = (r.abstractRaw ?? "").toLowerCase();
+        let score = 0;
+        for (const w of effectiveWords) {
+          if (titleLower.includes(w)) score += 3;
+          else if (abstractLower.includes(w)) score += 1;
+        }
+        return { id: r.id, score };
+      })
+      .filter((r) => r.score > 0)
       .sort((a, b) => b.score - a.score)
       .map((r) => r.id);
     if (searchOrder.length === 0) {

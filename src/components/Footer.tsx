@@ -5,7 +5,7 @@ const LINK_COLUMNS = [
   {
     title: "Jelajahi",
     links: [
-      { href: "/katalog", label: "Katalog Riset" },
+      { href: "/katalog", label: "Archive Riset" },
       { href: "/dashboard", label: "Dashboard Tren" },
       { href: "/metodologi", label: "Metodologi" },
     ],

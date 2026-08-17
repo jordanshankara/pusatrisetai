@@ -6,7 +6,7 @@ import { FilterForm } from "@/components/FilterForm";
 import { Pagination } from "@/components/Pagination";
 
 export const metadata: Metadata = {
-  title: "Katalog Riset — PusatRiset.ai",
+  title: "Archive Riset — PusatRiset.ai",
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -79,7 +79,7 @@ export default async function KatalogPage({ searchParams }: { searchParams: Prom
               <LibraryBig className="h-5 w-5 text-brand-700" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-brand-900 sm:text-2xl">Katalog Riset</h1>
+              <h1 className="text-xl font-bold text-brand-900 sm:text-2xl">Archive Riset</h1>
               <p className="text-sm text-secondary">{result.total.toLocaleString("id-ID")} riset AI Indonesia &amp; dunia siap dijelajahi</p>
             </div>
           </div>

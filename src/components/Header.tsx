@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { Menu, X, BrainCircuit } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/katalog", label: "Katalog" },
+  { href: "/", label: "Home" },
+  { href: "/katalog", label: "Archive" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/metodologi", label: "Metodologi" },
 ];

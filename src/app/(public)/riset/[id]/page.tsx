@@ -63,8 +63,8 @@ export default async function PaperDetailPage({ params, searchParams }: { params
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <nav className="mb-4 text-sm text-secondary">
-        <Link href="/katalog" className="hover:text-brand-700">
-          Katalog
+        <Link href="/katalog" className="font-medium hover:text-brand-700">
+          ← Kembali ke Archive
         </Link>
         <span className="mx-1.5">/</span>
         <span className="text-primary">{paper.title.length > 60 ? `${paper.title.slice(0, 60)}...` : paper.title}</span>
