@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FileText } from "lucide-react";
 import type { PaperListItem } from "@/lib/services/papers";
 import { RelevanceBadge } from "./RelevanceBadge";
 import { RetractedBanner } from "./RetractedBanner";
@@ -14,10 +15,13 @@ function authorsLine(preview: string[], count: number): string {
 
 export function PaperCard({ paper }: { paper: PaperListItem }) {
   return (
-    <article className="rounded-[14px] border border-warm bg-card p-5 shadow-[var(--shadow-card)] transition hover:border-brand-700/40">
+    <article className="rounded-[14px] border border-warm bg-card p-5 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-brand-700/40 hover:shadow-lg">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <Link href={`/riset/${paper.id}`} className="text-base font-semibold leading-snug text-primary hover:text-brand-700 hover:underline">
-          <OriginFlag origin={paper.origin} /> {paper.title}
+        <Link href={`/riset/${paper.id}`} className="flex items-start gap-2 text-base font-semibold leading-snug text-primary hover:text-brand-700 hover:underline">
+          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" />
+          <span>
+            <OriginFlag origin={paper.origin} /> {paper.title}
+          </span>
         </Link>
         <RelevanceBadge status={paper.relevanceBadge} />
       </div>

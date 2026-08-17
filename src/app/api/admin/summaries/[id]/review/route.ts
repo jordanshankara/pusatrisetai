@@ -7,9 +7,7 @@ const bodySchema = z.object({
   action: z.enum(["approve", "reject"]),
   edits: z
     .object({
-      summaryLayperson: z.string().optional(),
-      summaryTechnical: z.string().optional(),
-      relevanceIndonesia: z.string().optional(),
+      content: z.string().optional(),
     })
     .optional(),
 });
@@ -51,9 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       prisma.summary.update({
         where: { id },
         data: {
-          ...(edits?.summaryLayperson !== undefined ? { summaryLayperson: edits.summaryLayperson } : {}),
-          ...(edits?.summaryTechnical !== undefined ? { summaryTechnical: edits.summaryTechnical } : {}),
-          ...(edits?.relevanceIndonesia !== undefined ? { relevanceIndonesia: edits.relevanceIndonesia } : {}),
+          ...(edits?.content !== undefined ? { content: edits.content } : {}),
           status: "published",
           sourceType: summary.sourceType === "ai_draft" ? "ai_reviewed" : summary.sourceType,
           reviewedById: auth.email,

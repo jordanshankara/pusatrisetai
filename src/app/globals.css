@@ -11,24 +11,27 @@
   --accent: #1e3a5f;
   --accent-hover: #16304d;
 
-  /* === Palet editorial (BRIEF Round 2, Bagian A.1) — dipakai halaman publik === */
+  /* === Palet publik (PATCH: redesain profesional biru/putih modern — nama variable
+     DIPERTAHANKAN apa adanya supaya semua komponen yang sudah pakai bg-page/bg-card-alt/
+     border-warm/text-primary dst otomatis ikut berubah tanpa perlu ganti satu-satu class.
+     Sebelumnya krem/coklat "editorial hangat" — sekarang biru/putih ala SaaS modern. === */
 
-  /* Latar & permukaan — hangat, bukan putih steril */
-  --bg-page: #F7F3EA;
+  /* Latar & permukaan — putih & biru sangat muda, bukan krem */
+  --bg-page: #F7F9FC;
   --bg-card: #FFFFFF;
-  --bg-card-alt: #F0EBE0;
-  --border-warm: #E4DDCC;
-  --shadow-card: 0 2px 8px rgba(36, 31, 22, 0.04);
+  --bg-card-alt: #EEF3FA;
+  --border-warm: #E2E8F0;
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
 
-  /* Biru — warna khas PusatRiset.ai, pengganti peran emas di referensi */
+  /* Biru — warna khas PusatRiset.ai, sekarang jadi warna primer utama (bukan aksen) */
   --brand-blue-900: #0C2D4A;
   --brand-blue-700: #14508A;
   --brand-blue-100: #E3EEF7;
 
-  /* Teks editorial */
-  --text-primary: #241F16;
-  --text-secondary: #6B6355;
-  --text-muted: #746650; /* dinaikkan dari draf awal A.1 (#9C9484, kontras 2.72 gagal AA) ke 5.04:1 — masih nada krem hangat, bukan abu-abu dingin */
+  /* Teks — slate/navy modern, bukan coklat editorial */
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
 
   /* Badge relevansi — kode makna, SENGAJA terpisah dari palet dekoratif krem/biru
      di atas. Nilai persis sesuai A.1, jangan ikut nada krem/biru. */
@@ -93,4 +96,56 @@
   a {
     color: inherit;
   }
+}
+
+/* Styling untuk HTML hasil RichTextEditor (Tiptap) — dipakai di editor admin (.prose-summary)
+   DAN saat konten yang sama ditampilkan di halaman publik /riset/[id] (.summary-content).
+   Sengaja ditulis manual (bukan @tailwindcss/typography) supaya ikut tipografi editorial
+   situs yang sudah ada, bukan preset generik. */
+.prose-summary h2,
+.summary-content h2 {
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+  font-size: 1.15em;
+  font-weight: 700;
+}
+.prose-summary h3,
+.summary-content h3 {
+  margin-top: 0.9em;
+  margin-bottom: 0.35em;
+  font-size: 1.05em;
+  font-weight: 600;
+}
+.prose-summary p,
+.summary-content p {
+  margin-bottom: 0.75em;
+  line-height: 1.7;
+}
+.prose-summary ul,
+.summary-content ul {
+  margin-bottom: 0.75em;
+  padding-left: 1.25em;
+  list-style: disc;
+}
+.prose-summary ol,
+.summary-content ol {
+  margin-bottom: 0.75em;
+  padding-left: 1.25em;
+  list-style: decimal;
+}
+.prose-summary li,
+.summary-content li {
+  margin-bottom: 0.25em;
+}
+.prose-summary strong,
+.summary-content strong {
+  font-weight: 700;
+}
+.prose-summary em,
+.summary-content em {
+  font-style: italic;
+}
+.prose-summary u,
+.summary-content u {
+  text-decoration: underline;
 }

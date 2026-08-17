@@ -209,6 +209,10 @@ model Paper {
   affiliationInferred   Boolean  @default(false) @map("affiliation_inferred")
   /// PATCH 4 — status pengayaan metadata; hanya tampil di admin
   enrichmentStatus      EnrichmentStatus @default(pending) @map("enrichment_status")
+  /// null = tidak dipin; terisi = waktu admin menandai prioritas (sekaligus jadi urutan
+  /// "paling baru dipin dulu" tanpa kolom order terpisah). HANYA admin yang boleh mengubah
+  /// (lihat requireAdminRole() di api/admin/papers/[id]/priority/route.ts) — editor cuma lihat.
+  priorityPinnedAt      DateTime? @map("priority_pinned_at")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -233,6 +237,7 @@ model Paper {
   @@index([sourceTier])
   @@index([metadataStatus])
   @@index([venueId])
+  @@index([priorityPinnedAt])
   /// ADAPTASI: @@fulltext (MySQL FULLTEXT multi-kolom) DIBUANG — TiDB Cloud (target deploy) tidak
   /// mendukung FULLTEXT INDEX multi-kolom seperti MySQL asli. Pencarian di listPapers() dipindah
   /// ke Prisma `contains` (LIKE) biasa, portable di MySQL lokal maupun TiDB tanpa raw SQL.
@@ -386,9 +391,10 @@ model Summary {
   paperId            String @map("paper_id")
   paper              Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
   language           Lang   @default(id)
-  summaryLayperson   String? @map("summary_layperson") @db.Text
-  summaryTechnical   String? @map("summary_technical") @db.Text
-  relevanceIndonesia String? @map("relevance_indonesia") @db.Text
+  /// SATU field rich-text (HTML dari editor Tiptap admin) menggantikan 3 kolom lama
+  /// (summaryLayperson/summaryTechnical/relevanceIndonesia) — staf sendiri yang memutuskan
+  /// struktur/pembagian di dalam teksnya (lihat RichTextEditor.tsx), bukan sistem yang memaksa.
+  content            String? @db.Text
   sourceType         SummarySource @map("source_type")
   provenance         Provenance @default(from_abstract)
   /// SUMBU 2: gerbang editorial ADA DI SINI. Publik hanya melihat status=published.
@@ -480,12 +486,27 @@ model PaperPolicyTag {
 }
 
 model User {
-  id          String @id @default(uuid())
-  email       String @unique
-  displayName String? @map("display_name")
-  role        UserRole
-  active      Boolean @default(true)
+  id           String @id @default(uuid())
+  email        String @unique
+  displayName  String? @map("display_name")
+  /// scrypt hash (lihat src/lib/auth/password.ts) — TIDAK PERNAH dikirim ke client
+  passwordHash String @map("password_hash")
+  role         UserRole
+  active       Boolean @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
   @@map("users")
+}
+
+/// Penyimpanan key-value untuk pengaturan yang bisa diubah admin lewat menu Settings (mis. API
+/// key LLM) — TANPA perlu redeploy/ubah .env. Script CLI (backfill-content.ts, fetch-openalex.ts)
+/// TETAP baca .env langsung, TIDAK memakai tabel ini (lihat LLMClient.fromSettings() yang hanya
+/// dipakai 2 route web).
+model AppSetting {
+  key         String @id
+  value       String @db.Text
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String? @map("updated_by")
+  @@map("app_settings")
 }
 
 model Dispute {

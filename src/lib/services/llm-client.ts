@@ -1,6 +1,7 @@
 /**
- * Klien LLM multi-provider bersama untuk scripts/backfill-content.ts (B.2-B.4) dan
- * scripts/backfill-relations.ts (B.5).
+ * Klien LLM multi-provider bersama — dipakai scripts/backfill-content.ts (B.2-B.4),
+ * scripts/backfill-relations.ts (B.5), dan route admin di src/app/api/admin/papers/*
+ * (draft ringkasan & saran relevansi on-demand).
  *
  * Dua tingkat provider, dicoba berurutan per panggilan:
  * 1. Gemini API (GEMINI_API_KEYS) — beberapa key dirotasi round-robin, model utama lalu
@@ -70,10 +71,10 @@ class GeminiTier {
   private activeModel: string;
   private fallbackEngaged = false;
 
-  constructor(rawKeys: string[]) {
+  constructor(rawKeys: string[], primaryModel?: string, fallbackModel?: string) {
     this.keys = rawKeys.map((key, i) => ({ id: `gemini key#${i}:${key}`, nextAvailableAt: 0 }));
-    this.primaryModel = process.env.GEMINI_MODEL_PRIMARY ?? "gemini-2.5-flash";
-    this.fallbackModel = process.env.GEMINI_MODEL_FALLBACK ?? "gemini-3-flash-preview";
+    this.primaryModel = primaryModel ?? process.env.GEMINI_MODEL_PRIMARY ?? "gemini-2.5-flash";
+    this.fallbackModel = fallbackModel ?? process.env.GEMINI_MODEL_FALLBACK ?? "gemini-3-flash-preview";
     this.activeModel = this.primaryModel;
   }
 
@@ -251,26 +252,55 @@ class OpenRouterTier {
 
 // ============================== Client gabungan ==============================
 
+/// Override opsional dipakai HANYA oleh LLMClient.fromSettings() (2 route web summary/relevance
+/// suggest) — kalau field tidak diisi, jatuh balik ke .env seperti biasa. Script CLI
+/// (backfill-content.ts, fetch-openalex.ts) TETAP pakai `new LLMClient()` tanpa override.
+export interface LLMClientOverrides {
+  geminiApiKeys?: string;
+  geminiModelPrimary?: string;
+  geminiModelFallback?: string;
+  openrouterApiKey?: string;
+}
+
 export class LLMClient {
   private gemini: GeminiTier | null = null;
   private openrouter: OpenRouterTier | null = null;
   private lastProvider = "";
 
-  constructor() {
-    const rawKeys = (process.env.GEMINI_API_KEYS ?? "").split(",").map((k) => k.trim()).filter(Boolean);
-    if (rawKeys.length > 0) this.gemini = new GeminiTier(rawKeys);
+  constructor(overrides?: LLMClientOverrides) {
+    const rawKeys = (overrides?.geminiApiKeys ?? process.env.GEMINI_API_KEYS ?? "")
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean);
+    if (rawKeys.length > 0) this.gemini = new GeminiTier(rawKeys, overrides?.geminiModelPrimary, overrides?.geminiModelFallback);
 
-    const orKey = (process.env.OPENROUTER_API_KEY ?? "").trim();
+    const orKey = (overrides?.openrouterApiKey ?? process.env.OPENROUTER_API_KEY ?? "").trim();
     if (orKey) this.openrouter = new OpenRouterTier(orKey);
 
     if (!this.gemini && !this.openrouter) {
-      throw new Error("Tidak ada provider LLM terkonfigurasi — isi GEMINI_API_KEYS dan/atau OPENROUTER_API_KEY di .env.");
+      throw new Error("Tidak ada provider LLM terkonfigurasi — isi GEMINI_API_KEYS dan/atau OPENROUTER_API_KEY di .env atau menu Settings.");
     }
     console.log(
       `[llm] Provider aktif: ${this.gemini ? `Gemini (${rawKeys.length} key)` : ""}${this.gemini && this.openrouter ? " + " : ""}${
         this.openrouter ? `OpenRouter (${OPENROUTER_FREE_MODELS.length} model gratis)` : ""
       }.`
     );
+  }
+
+  /// Dipakai HANYA oleh route web (bukan script CLI) — cek AppSetting dulu (diisi admin lewat
+  /// menu Settings), field yang kosong di DB jatuh balik ke .env lewat constructor di atas.
+  static async fromSettings(): Promise<LLMClient> {
+    const { prisma } = await import("@/lib/db");
+    const rows = await prisma.appSetting.findMany({
+      where: { key: { in: ["GEMINI_API_KEYS", "GEMINI_MODEL_PRIMARY", "GEMINI_MODEL_FALLBACK", "OPENROUTER_API_KEY"] } },
+    });
+    const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    return new LLMClient({
+      geminiApiKeys: map.GEMINI_API_KEYS,
+      geminiModelPrimary: map.GEMINI_MODEL_PRIMARY,
+      geminiModelFallback: map.GEMINI_MODEL_FALLBACK,
+      openrouterApiKey: map.OPENROUTER_API_KEY,
+    });
   }
 
   get modelInUse(): string {

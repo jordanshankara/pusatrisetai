@@ -2,7 +2,7 @@
  * BAGIAN B.2-B.4 (BRIEF Round 2) — script opsional, dijalankan manual:
  *   `npx tsx scripts/backfill-content.ts [--limit N]`
  *
- * Mengisi ringkasan (summaryLayperson, summaryTechnical, relevanceIndonesia) untuk semua
+ * Mengisi ringkasan (content — satu field rich-text) untuk semua
  * paper yang BELUM punya summary published berbahasa Indonesia, pakai LLMClient
  * (scripts/lib/llm-client.ts) — Gemini API dicoba dulu, fallback ke model gratis OpenRouter
  * kalau kuota Gemini habis.
@@ -26,127 +26,14 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { LLMClient } from "./lib/llm-client";
+import { LLMClient } from "../src/lib/services/llm-client";
 import { POLICY_TAG_LABELS } from "../src/lib/policy-tags";
+import { buildSummaryPrompt, sectorHint, wordCount, findUnverifiedNumbers, findIncompletenessIssues, plainTextToParagraphHtml } from "../src/lib/llm/summary-prompt";
 
 const prisma = new PrismaClient();
 
 const limitArg = process.argv.find((a) => a.startsWith("--limit"));
 const LIMIT = limitArg ? Number(limitArg.split("=")[1] ?? process.argv[process.argv.indexOf(limitArg) + 1]) : undefined;
-
-const SYSTEM_PROMPT_TEMPLATE = (input: {
-  title: string;
-  abstract: string;
-  subfield: string;
-  venue: string;
-  origin: string;
-  sectorHint: string;
-}) => `Anda adalah editor sains yang menerjemahkan paper riset kecerdasan buatan (AI)
-ke dalam Bahasa Indonesia yang mengalir, jelas, dan jujur terhadap sumber — untuk
-pembaca umum yang cerdas: pembuat kebijakan, jurnalis, mahasiswa, praktisi.
-
-ATURAN MUTLAK:
-1. HANYA gunakan informasi yang ADA di judul dan abstrak yang diberikan.
-   JANGAN mengarang angka, metode, atau klaim yang tidak tertulis di abstrak.
-2. Kalau abstrak tidak menyebut angka hasil, JANGAN membuat angka. Tulis kualitatif saja.
-3. Bedakan "penulis melaporkan/mengklaim" dari "penelitian ini membuktikan" —
-   gunakan bahasa yang tidak berlebihan (hedged), sesuai norma penulisan ilmiah.
-4. relevanceIndonesia harus JUJUR — kalau tidak ada kaitan jelas, katakan begitu.
-   JANGAN memaksakan narasi relevansi yang tidak berdasar.
-5. Bahasa Indonesia sehari-hari yang mengalir, BUKAN terjemahan literal kaku.
-   Istilah teknis baku (neural network, transformer, dst) boleh tetap Inggris.
-
-STRUKTUR WAJIB:
-- summaryLayperson (4-6 kalimat, boleh 2 paragraf pendek): (1) riset ini tentang apa dengan
-  bahasa sehari-hari, (2) masalah apa yang dipecahkan dan kenapa penting, (3) bagaimana cara
-  mereka mengatasinya (disederhanakan, tanpa istilah matematis), (4) apa yang mereka temukan
-  (sebutkan angka HANYA jika ada di abstrak), (5-6 opsional) implikasi praktisnya.
-- summaryTechnical (5-8 kalimat): (1) konteks riset & gap yang diisi (kalau disebut), (2)
-  metode/pendekatan teknis (arsitektur, dataset, metrik SESUAI abstrak), (3) hasil eksperimen
-  dengan angka SPESIFIK dari abstrak (kalau ada), (4) keterbatasan/catatan penting (kalau
-  disebut), (5) kesimpulan teknis singkat.
-- relevanceIndonesia (3-5 kalimat, BUKAN template kosong): ${input.sectorHint}
-
-INPUT:
-Judul: ${input.title}
-Abstrak: ${input.abstract}
-Topik/subbidang: ${input.subfield}
-Venue: ${input.venue}
-Asal (Indonesia/internasional): ${input.origin}
-
-OUTPUT (JSON, tanpa markdown, tanpa teks lain di luar JSON):
-{
-  "summaryLayperson": "4-6 kalimat sesuai struktur di atas...",
-  "summaryTechnical": "5-8 kalimat sesuai struktur di atas...",
-  "relevanceIndonesia": "3-5 kalimat, jujur, tidak mengada-ada...",
-  "extractedNumbers": ["daftar semua angka/persentase yang disebut di ringkasan, untuk verifikasi"]
-}
-
-Jika abstrak yang diberikan kosong atau kurang dari 50 kata, kembalikan:
-{"error": "abstract_too_thin"}`;
-
-function sectorHint(origin: string, policyTagLabels: string[]): string {
-  if (origin === "local") {
-    const sectors = policyTagLabels.length > 0 ? policyTagLabels.join(", ") : null;
-    return sectors
-      ? `Paper ini dari Indonesia — jelaskan relevansinya untuk konteks nasional secara konkret, kaitkan ke sektor: ${sectors}. Kenapa penting untuk Indonesia SPESIFIK (bukan generik "AI penting untuk Indonesia").`
-      : `Paper ini dari Indonesia — jelaskan relevansinya untuk konteks nasional secara konkret (sektor kesehatan/pertanian/birokrasi/pendidikan/dst yang paling relevan dari isi abstrak). Kenapa penting untuk Indonesia SPESIFIK, bukan generik.`;
-  }
-  return `Paper ini internasional — jelaskan APAKAH dan BAGAIMANA metodenya bisa relevan diterapkan/dipelajari untuk konteks Indonesia. Kalau memang tidak ada kaitan jelas, tulis jujur: "Riset ini bersifat fundamental/global dan tidak memiliki kaitan sektor spesifik dengan Indonesia saat ini, namun metodenya berpotensi diadaptasi untuk [alasan singkat]." JANGAN memaksakan relevansi yang mengada-ada.`;
-}
-
-function wordCount(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-/// Ambil token angka (termasuk desimal/persen) dari sebuah teks, dinormalisasi (tanpa
-/// pemisah ribuan, titik sebagai desimal) supaya bisa dibandingkan apa adanya.
-function extractNormalizedNumbers(text: string): Set<string> {
-  const matches = text.match(/\d[\d.,]*\d|\d/g) ?? [];
-  const out = new Set<string>();
-  for (const m of matches) {
-    const normalized = m.replace(/,(?=\d{3}(\D|$))/g, "").replace(/,/g, ".");
-    out.add(normalized);
-  }
-  return out;
-}
-
-/// B.4: cek tiap angka yang diklaim LLM (extractedNumbers) ada di abstrak asli.
-/// Return daftar angka yang TIDAK ditemukan (kosong = semua angka valid).
-function findUnverifiedNumbers(extractedNumbers: unknown, abstractRaw: string): string[] {
-  if (!Array.isArray(extractedNumbers)) return [];
-  const abstractNumbers = extractNormalizedNumbers(abstractRaw);
-  const unverified: string[] = [];
-  for (const claim of extractedNumbers) {
-    if (typeof claim !== "string") continue;
-    const claimNumbers = extractNormalizedNumbers(claim);
-    if (claimNumbers.size === 0) continue; // bukan klaim numerik (mis. teks non-angka nyasar)
-    for (const n of claimNumbers) {
-      if (!abstractNumbers.has(n)) unverified.push(`${claim} (angka "${n}" tidak ditemukan di abstrak)`);
-    }
-  }
-  return unverified;
-}
-
-/// Validasi kelengkapan/kewarasan teks (BUKAN dari B.4, tapi gerbang tambahan yang sama
-/// pentingnya — ditemukan saat spot-check manual): beberapa model (khususnya fallback
-/// OpenRouter) kadang memotong respons di tengah kata/kalimat meski JSON-nya tetap "valid"
-/// secara sintaks (provider menutup paksa string yang belum selesai), atau menyelipkan
-/// karakter dari skrip lain (mis. Han/Cyrillic) di tengah teks Indonesia. Kode, bukan LLM —
-/// sama seperti B.4, jangan biarkan publish otomatis kalau ada tanda-tanda ini.
-const NON_LATIN_SCRIPT = /[一-鿿぀-ヿ가-힯Ѐ-ӿ؀-ۿ]/;
-function endsCleanly(text: string): boolean {
-  return /[.!?)”"'）]\s*$/.test(text.trim());
-}
-function findIncompletenessIssues(fields: { label: string; text: string }[]): string[] {
-  const issues: string[] = [];
-  for (const { label, text } of fields) {
-    if (text.trim().length < 20) issues.push(`${label} terlalu pendek/kosong`);
-    else if (!endsCleanly(text)) issues.push(`${label} tampak terpotong (tidak diakhiri tanda baca): "...${text.trim().slice(-30)}"`);
-    if (NON_LATIN_SCRIPT.test(text)) issues.push(`${label} mengandung karakter non-Latin mencurigakan (kemungkinan glitch model)`);
-  }
-  return issues;
-}
 
 interface FlaggedRow {
   paperId: string;
@@ -189,7 +76,7 @@ async function main() {
     }
 
     const policyTagLabels = paper.policyTags.map((pt) => POLICY_TAG_LABELS[pt.tag.slug] ?? pt.tag.slug);
-    const prompt = SYSTEM_PROMPT_TEMPLATE({
+    const prompt = buildSummaryPrompt({
       title: paper.title,
       abstract,
       subfield: paper.topics[0]?.subfield ?? paper.topics[0]?.field ?? "tidak diketahui",
@@ -211,19 +98,15 @@ async function main() {
       continue;
     }
 
-    const { summaryLayperson, summaryTechnical, relevanceIndonesia, extractedNumbers } = result as Record<string, unknown>;
-    if (typeof summaryLayperson !== "string" || typeof summaryTechnical !== "string" || typeof relevanceIndonesia !== "string") {
+    const { summaryContent, extractedNumbers } = result as Record<string, unknown>;
+    if (typeof summaryContent !== "string") {
       errored++;
       console.error(`  [skip] ${paper.id} "${paper.title.slice(0, 60)}" — respons JSON tidak lengkap, dilewati.`);
       continue;
     }
 
     const unverified = findUnverifiedNumbers(extractedNumbers, abstract);
-    const incompleteness = findIncompletenessIssues([
-      { label: "summaryLayperson", text: summaryLayperson },
-      { label: "summaryTechnical", text: summaryTechnical },
-      { label: "relevanceIndonesia", text: relevanceIndonesia },
-    ]);
+    const incompleteness = findIncompletenessIssues([{ label: "summaryContent", text: summaryContent }]);
     const allIssues = [...unverified, ...incompleteness];
     const isValid = allIssues.length === 0;
 
@@ -231,9 +114,7 @@ async function main() {
       data: {
         paperId: paper.id,
         language: "id",
-        summaryLayperson,
-        summaryTechnical,
-        relevanceIndonesia,
+        content: plainTextToParagraphHtml(summaryContent),
         sourceType: "ai_draft", // B.0: BUKAN ai_reviewed — belum direview editor manusia
         provenance: "from_abstract",
         status: isValid ? "published" : "draft", // B.4: TIDAK publish otomatis kalau ada angka mencurigakan

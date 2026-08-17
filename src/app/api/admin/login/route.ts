@@ -1,9 +1,9 @@
 import { z } from "zod";
+import { prisma } from "@/lib/db";
 import { ok, apiError, zodValidationError } from "@/lib/api/response";
-import { ADMIN_SESSION_COOKIE, createAdminSession } from "@/lib/auth/admin-session";
+import { ADMIN_SESSION_COOKIE, createSession } from "@/lib/auth/admin-session";
+import { verifyPassword } from "@/lib/auth/password";
 
-/// Bukan bagian dari kontrak Bagian 5 — util dev untuk uji /api/admin/* lewat curl/Postman
-/// sebelum halaman login (/admin/login) dibangun. Kredensial dari .env (ADMIN_EMAIL/ADMIN_PASSWORD).
 const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
@@ -23,12 +23,13 @@ export async function POST(request: Request) {
   }
 
   const { email, password } = parsed.data;
-  if (email !== process.env.ADMIN_EMAIL || password !== process.env.ADMIN_PASSWORD) {
-    return apiError(401, "INVALID_CREDENTIALS", "Email atau password admin salah.");
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || !user.active || !verifyPassword(password, user.passwordHash)) {
+    return apiError(401, "INVALID_CREDENTIALS", "Email atau password salah, atau akun tidak aktif.");
   }
 
-  const { token, expiresAt } = createAdminSession(email);
-  const response = ok({ email, expiresAt });
+  const { token, expiresAt } = createSession({ id: user.id, email: user.email, role: user.role });
+  const response = ok({ email: user.email, role: user.role, expiresAt });
   response.cookies.set(ADMIN_SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

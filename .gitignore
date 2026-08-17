@@ -44,3 +44,7 @@ next-env.d.ts
 # har captures (may contain session/IP data)
 *.har
 
+# log runtime script (fetch-openalex.ts dst) — output operasional, bukan source, tetap
+# disimpan di disk untuk dipantau tapi tidak perlu masuk riwayat git
+docs/*.log
+

@@ -4,14 +4,14 @@ const buckets = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 5;
 
-export function checkRateLimit(key: string): boolean {
+export function checkRateLimit(key: string, max: number = MAX_PER_WINDOW): boolean {
   const now = Date.now();
   const bucket = buckets.get(key);
   if (!bucket || bucket.resetAt < now) {
     buckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
     return true;
   }
-  if (bucket.count >= MAX_PER_WINDOW) {
+  if (bucket.count >= max) {
     return false;
   }
   bucket.count += 1;

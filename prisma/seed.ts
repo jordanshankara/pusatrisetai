@@ -8,6 +8,7 @@
 import { PrismaClient, type License, type EnrichmentStatus } from "@prisma/client";
 import { deriveAbstractPolicy, type SourcePermission } from "../src/lib/rules/abstract-policy";
 import { deriveAffiliationCountries } from "../src/lib/rules/affiliation-countries";
+import { hashPassword } from "../src/lib/auth/password";
 
 const prisma = new PrismaClient();
 
@@ -989,11 +990,17 @@ async function main() {
     data: {
       email: process.env.ADMIN_EMAIL ?? "admin@pusatriset.ai",
       displayName: "Admin PusatRiset",
+      passwordHash: hashPassword(process.env.ADMIN_PASSWORD ?? "changeme-local-only"),
       role: "admin",
     },
   });
   await prisma.user.create({
-    data: { email: "editor@pusatriset.ai", displayName: "Editor PusatRiset", role: "editor" },
+    data: {
+      email: "editor@pusatriset.ai",
+      displayName: "Editor PusatRiset",
+      passwordHash: hashPassword("editor-local-only"),
+      role: "editor",
+    },
   });
 
   console.log("Seed institutions...");
@@ -1178,9 +1185,7 @@ async function main() {
 
     // Summaries sesuai plan
     if (spec.summaryPlan.kind !== "none") {
-      const layperson = `Studi "${spec.titleId}" menjelaskan temuan penelitian ini dengan bahasa yang mudah dipahami, menyoroti manfaat praktisnya.`;
-      const technical = `Penelitian ini mengevaluasi pendekatan yang diusulkan pada data terkait subbidang ${spec.subfield}, dengan hasil yang kompetitif dibanding baseline yang umum digunakan.`;
-      const relevance = `Temuan ini relevan bagi konteks Indonesia karena berkaitan langsung dengan kebutuhan riset dan kebijakan di subbidang ${spec.subfield}.`;
+      const content = `<p>Studi "${spec.titleId}" menjelaskan temuan penelitian ini dengan bahasa yang mudah dipahami, menyoroti manfaat praktisnya.</p><p>Penelitian ini mengevaluasi pendekatan yang diusulkan pada data terkait subbidang ${spec.subfield}, dengan hasil yang kompetitif dibanding baseline yang umum digunakan.</p><p>Temuan ini relevan bagi konteks Indonesia karena berkaitan langsung dengan kebutuhan riset dan kebijakan di subbidang ${spec.subfield}.</p>`;
 
       const status = spec.summaryPlan.kind === "draft" ? "draft" : "published";
       const sourceType = spec.summaryPlan.kind === "draft" ? "ai_draft" : "manual";
@@ -1189,9 +1194,7 @@ async function main() {
         data: {
           paperId: paper.id,
           language: "id",
-          summaryLayperson: layperson,
-          summaryTechnical: technical,
-          relevanceIndonesia: relevance,
+          content,
           sourceType,
           provenance: "from_abstract",
           status,
@@ -1203,9 +1206,7 @@ async function main() {
           data: {
             paperId: paper.id,
             language: "en",
-            summaryLayperson: `This study, "${spec.titleId}", explains the research findings in accessible language, highlighting practical benefits.`,
-            summaryTechnical: `This work evaluates the proposed approach on data related to ${spec.subfield}, showing competitive results against common baselines.`,
-            relevanceIndonesia: `These findings are relevant to the Indonesian context given ongoing research and policy needs in ${spec.subfield}.`,
+            content: `<p>This study, "${spec.titleId}", explains the research findings in accessible language, highlighting practical benefits.</p><p>This work evaluates the proposed approach on data related to ${spec.subfield}, showing competitive results against common baselines.</p><p>These findings are relevant to the Indonesian context given ongoing research and policy needs in ${spec.subfield}.</p>`,
             sourceType: "manual",
             provenance: "from_abstract",
             status: "published",

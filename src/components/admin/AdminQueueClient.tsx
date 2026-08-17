@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Toast } from "@/components/Toast";
 import { RelevancePanel } from "@/components/admin/RelevancePanel";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { adminFetch } from "@/lib/admin-fetch";
 
 type PaperRef = { id: string; title: string };
 
@@ -10,9 +13,7 @@ interface SummaryItem {
   id: string;
   paperId: string;
   language: "id" | "en";
-  summaryLayperson: string | null;
-  summaryTechnical: string | null;
-  relevanceIndonesia: string | null;
+  content: string | null;
   sourceType: string;
   status: string;
   paper: PaperRef;
@@ -80,7 +81,7 @@ const SUBMISSION_REJECT_REASONS = [
   { value: "rejected_no_credentials", label: "Tanpa kredensial" },
 ];
 
-export function AdminQueueClient({ adminEmail }: { adminEmail: string }) {
+export function AdminQueueClient() {
   const [data, setData] = useState<QueueData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +93,7 @@ export function AdminQueueClient({ adminEmail }: { adminEmail: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/queue");
+      const res = await adminFetch("/api/admin/queue");
       if (!res.ok) throw new Error("gagal memuat antrean");
       const body = await res.json();
       setData(body.data);
@@ -112,15 +113,10 @@ export function AdminQueueClient({ adminEmail }: { adminEmail: string }) {
     setTimeout(() => setToast(null), 4000);
   }
 
-  async function handleLogout() {
-    await fetch("/api/admin/logout", { method: "POST" });
-    window.location.href = "/admin/login";
-  }
-
   async function reviewItem(url: string, body: Record<string, unknown>, itemId: string, removeFn: () => void, successMsg: string) {
     setBusyId(itemId);
     try {
-      const res = await fetch(url, {
+      const res = await adminFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -144,24 +140,16 @@ export function AdminQueueClient({ adminEmail }: { adminEmail: string }) {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen w-full bg-background text-foreground">
-        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-          <p className="text-sm text-muted">Memuat antrean...</p>
-        </div>
-      </div>
-    );
+    return <p className="text-sm text-muted">Memuat antrean...</p>;
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen w-full bg-background text-foreground">
-        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-          <p className="text-sm text-[var(--badge-retracted-fg)]">{error ?? "Data tidak tersedia."}</p>
-          <button onClick={loadQueue} className="mt-3 rounded-md bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover">
-            Coba lagi
-          </button>
-        </div>
+      <div>
+        <p className="text-sm text-[var(--badge-retracted-fg)]">{error ?? "Data tidak tersedia."}</p>
+        <button onClick={loadQueue} className="mt-3 rounded-md bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover">
+          Coba lagi
+        </button>
       </div>
     );
   }
@@ -175,36 +163,38 @@ export function AdminQueueClient({ adminEmail }: { adminEmail: string }) {
   };
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground">
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Panel Editorial</h1>
-          <p className="mt-1 text-sm text-muted">Masuk sebagai {adminEmail}</p>
+    <div>
+      <h1 className="text-2xl font-bold text-foreground">Panel Editorial</h1>
+      <p className="mt-1 text-sm text-muted">Item yang menunggu tinjauan Anda.</p>
+
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {TABS.map((t) => (
+          <AdminCard key={t.key} className="text-center">
+            <p className="text-2xl font-bold text-foreground">{counts[t.key]}</p>
+            <p className="mt-1 text-xs text-muted">{t.label}</p>
+          </AdminCard>
+        ))}
+      </div>
+
+      <AdminCard className="mt-6 p-0">
+        <div className="border-b border-border px-5 pt-4">
+          <nav className="flex flex-wrap gap-1">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`rounded-t-md px-4 py-2 text-sm font-medium ${
+                  tab === t.key ? "border-b-2 border-accent text-accent" : "text-muted hover:text-foreground"
+                }`}
+              >
+                {t.label} <span className="ml-1 rounded-full bg-background px-2 py-0.5 text-xs">{counts[t.key]}</span>
+              </button>
+            ))}
+          </nav>
         </div>
-        <button onClick={handleLogout} className="rounded-md border border-border px-4 py-2 text-sm hover:bg-surface">
-          Keluar
-        </button>
-      </div>
 
-      <div className="mt-6 border-b border-border">
-        <nav className="flex flex-wrap gap-1">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`rounded-t-md px-4 py-2 text-sm font-medium ${
-                tab === t.key ? "border-b-2 border-accent text-accent" : "text-muted hover:text-foreground"
-              }`}
-            >
-              {t.label} <span className="ml-1 rounded-full bg-surface px-2 py-0.5 text-xs">{counts[t.key]}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      <div className="mt-6 space-y-4">
-        {tab === "summaries" &&
+        <div className="space-y-4 p-5">
+          {tab === "summaries" &&
           (data.summaries.length === 0 ? (
             <EmptyState />
           ) : (
@@ -313,16 +303,16 @@ export function AdminQueueClient({ adminEmail }: { adminEmail: string }) {
               />
             ))
           ))}
-      </div>
+        </div>
+      </AdminCard>
 
-      <section className="mt-10 border-t border-border pt-6">
+      <AdminCard className="mt-6">
         <h2 className="text-lg font-semibold text-foreground">Set Relevansi Manual</h2>
         <p className="mt-1 text-sm text-muted">Tetapkan status relevansi publik untuk satu paper (dengan alasan override).</p>
         <RelevancePanel onSuccess={() => showToast("Relevansi paper diperbarui.")} onError={(msg) => showToast(msg)} />
-      </section>
+      </AdminCard>
 
       {toast ? <Toast message={toast} /> : null}
-    </div>
     </div>
   );
 }
@@ -373,9 +363,7 @@ function SummaryReviewCard({
   busy: boolean;
   onReview: (action: "approve" | "reject", edits?: Record<string, string>) => void;
 }) {
-  const [layperson, setLayperson] = useState(item.summaryLayperson ?? "");
-  const [technical, setTechnical] = useState(item.summaryTechnical ?? "");
-  const [relevance, setRelevance] = useState(item.relevanceIndonesia ?? "");
+  const [content, setContent] = useState(item.content ?? "");
 
   return (
     <CardShell>
@@ -383,46 +371,10 @@ function SummaryReviewCard({
         <p className="text-sm font-medium text-foreground">{item.paper.title}</p>
         <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">{item.language} · {item.status}</span>
       </div>
-      <div className="mt-3 space-y-2 text-sm">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-muted">Ringkasan Sederhana</label>
-          <textarea
-            value={layperson}
-            onChange={(e) => setLayperson(e.target.value)}
-            rows={2}
-            className="w-full rounded border border-border px-2 py-1.5 text-sm"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-muted">Ringkasan Teknis</label>
-          <textarea
-            value={technical}
-            onChange={(e) => setTechnical(e.target.value)}
-            rows={2}
-            className="w-full rounded border border-border px-2 py-1.5 text-sm"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-muted">Relevansi untuk Indonesia</label>
-          <textarea
-            value={relevance}
-            onChange={(e) => setRelevance(e.target.value)}
-            rows={2}
-            className="w-full rounded border border-border px-2 py-1.5 text-sm"
-          />
-        </div>
+      <div className="mt-3 text-sm">
+        <RichTextEditor content={content} onChange={setContent} />
       </div>
-      <ActionButtons
-        busy={busy}
-        onApprove={() =>
-          onReview("approve", {
-            summaryLayperson: layperson,
-            summaryTechnical: technical,
-            relevanceIndonesia: relevance,
-          })
-        }
-        onReject={() => onReview("reject")}
-      />
+      <ActionButtons busy={busy} onApprove={() => onReview("approve", { content })} onReject={() => onReview("reject")} />
     </CardShell>
   );
 }

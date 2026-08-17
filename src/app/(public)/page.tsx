@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Search, FileStack, Flag, Building2, Sparkles, TrendingUp, Flame, BarChart3 } from "lucide-react";
 import { getHomeStats } from "@/lib/services/papers";
 import { PaperCard } from "@/components/PaperCard";
 
@@ -8,29 +9,32 @@ export default async function HomePage() {
   const stats = await getHomeStats();
 
   const statCards = [
-    { label: "Total Riset", value: stats.totalPapers },
-    { label: "Riset Indonesia", value: stats.localPapers },
-    { label: "Institusi Terlibat", value: stats.institutionCount },
-    { label: "Ringkasan Terkurasi", value: stats.curatedSummaryCount },
+    { label: "Total Riset", value: stats.totalPapers, icon: FileStack },
+    { label: "Riset Indonesia", value: stats.localPapers, icon: Flag },
+    { label: "Institusi Terlibat", value: stats.institutionCount, icon: Building2 },
+    { label: "Ringkasan Terkurasi", value: stats.curatedSummaryCount, icon: Sparkles },
   ];
 
   return (
     <div>
       <section className="border-b border-warm bg-card-alt">
         <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6">
-          <h1 className="font-serif text-3xl font-bold text-brand-900 sm:text-4xl">
+          <h1 className="text-3xl font-bold text-brand-900 sm:text-4xl">
             Pusat kurasi riset AI Indonesia &amp; dunia — abstrak asli, makna nyata
           </h1>
           <p className="mt-3 text-secondary">
             Temukan riset kecerdasan buatan dengan ringkasan terkurasi, relevansi untuk Indonesia, dan sumber asli yang bisa dipertanggungjawabkan.
           </p>
           <form action="/katalog" method="GET" className="mx-auto mt-8 flex max-w-xl gap-2">
-            <input
-              type="text"
-              name="q"
-              placeholder="Cari judul, topik, atau kata kunci riset..."
-              className="flex-1 rounded-md border border-warm bg-card px-4 py-3 text-sm focus:border-brand-700 focus:outline-none"
-            />
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-warm" />
+              <input
+                type="text"
+                name="q"
+                placeholder="Cari judul, topik, atau kata kunci riset..."
+                className="w-full rounded-md border border-warm bg-card py-3 pl-10 pr-4 text-sm focus:border-brand-700 focus:outline-none"
+              />
+            </div>
             <button type="submit" className="rounded-md bg-brand-700 px-6 py-3 text-sm font-medium text-white hover:bg-brand-900">
               Cari
             </button>
@@ -43,7 +47,8 @@ export default async function HomePage() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {statCards.map((card) => (
             <div key={card.label} className="rounded-[14px] border border-warm bg-card p-6 text-center shadow-[var(--shadow-card)]">
-              <p className="text-2xl font-bold text-brand-700">{card.value.toLocaleString("id-ID")}</p>
+              <card.icon className="mx-auto h-5 w-5 text-brand-700" />
+              <p className="mt-2 text-2xl font-bold text-brand-700">{card.value.toLocaleString("id-ID")}</p>
               <p className="mt-1 text-xs text-secondary">{card.label}</p>
             </div>
           ))}
@@ -52,7 +57,10 @@ export default async function HomePage() {
 
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-serif text-lg font-semibold text-brand-900">Riset Terbaru</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-brand-900">
+            <TrendingUp className="h-5 w-5 text-brand-700" />
+            Riset Terbaru
+          </h2>
           <Link href="/katalog" className="text-sm font-medium text-brand-700 hover:underline">
             Lihat semua →
           </Link>
@@ -68,9 +76,29 @@ export default async function HomePage() {
         )}
       </section>
 
+      {stats.popularPapers.length > 0 ? (
+        <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-brand-900">
+              <Flame className="h-5 w-5 text-brand-700" />
+              Riset Terpopuler
+            </h2>
+            <Link href="/katalog" className="text-sm font-medium text-brand-700 hover:underline">
+              Lihat semua →
+            </Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {stats.popularPapers.map((paper) => (
+              <PaperCard key={paper.id} paper={paper} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="border-t border-warm bg-card-alt">
         <div className="mx-auto max-w-4xl px-4 py-12 text-center sm:px-6">
-          <h2 className="font-serif text-xl font-semibold text-brand-900">Lihat tren riset AI Indonesia vs dunia</h2>
+          <BarChart3 className="mx-auto h-8 w-8 text-brand-700" />
+          <h2 className="mt-3 text-xl font-semibold text-brand-900">Lihat tren riset AI Indonesia vs dunia</h2>
           <p className="mt-2 text-sm text-secondary">Bandingkan pertumbuhan riset per tahun dan per subbidang lewat Dashboard.</p>
           <Link
             href="/dashboard"

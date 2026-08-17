@@ -22,6 +22,10 @@ export function unauthorized(message = "Sesi admin tidak valid atau kedaluwarsa.
   return apiError(401, "UNAUTHORIZED", message);
 }
 
+export function forbidden(message = "Anda tidak punya akses untuk aksi ini.") {
+  return apiError(403, "FORBIDDEN", message);
+}
+
 /// error tak terduga: console.error di server, jangan bocorkan stack ke klien (Bagian 5)
 export function internalError(error: unknown) {
   console.error(error);

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,11 +25,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="id" className={`${geistSans.variable} ${geistMono.variable} ${sourceSerif.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col bg-page text-primary">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
-      </body>
+      {/* Body TIDAK boleh bawa warna/token editorial (bg-page/text-primary) — /admin/* pakai
+          palet netral sendiri (lihat AdminSidebar/layout admin), warna editorial cukup di
+          src/app/(public)/layout.tsx yang membungkus wrapper flex-nya sendiri. */}
+      <body className="min-h-full">{children}</body>
     </html>
   );
 }

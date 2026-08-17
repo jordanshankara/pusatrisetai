@@ -55,12 +55,12 @@ export function DisputeModal({ paperId }: { paperId: string }) {
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold">Ajukan Sanggahan</h3>
-            <form onSubmit={handleSubmit} className="mt-4 space-y-3 text-sm">
+          <div className="w-full max-w-md rounded-[14px] border border-warm bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-primary">Ajukan Sanggahan</h3>
+            <form onSubmit={handleSubmit} className="mt-4 space-y-3 text-sm text-primary">
               <div>
                 <label className="mb-1 block font-medium">Jenis sanggahan</label>
-                <select name="disputeType" required className="w-full rounded border border-border px-3 py-2">
+                <select name="disputeType" required className="w-full rounded border border-warm bg-card px-3 py-2">
                   {DISPUTE_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.label}
@@ -70,21 +70,21 @@ export function DisputeModal({ paperId }: { paperId: string }) {
               </div>
               <div>
                 <label className="mb-1 block font-medium">Nama (opsional)</label>
-                <input name="name" className="w-full rounded border border-border px-3 py-2" />
+                <input name="name" className="w-full rounded border border-warm bg-card px-3 py-2" />
               </div>
               <div>
                 <label className="mb-1 block font-medium">Email (opsional)</label>
-                <input name="email" type="email" className="w-full rounded border border-border px-3 py-2" />
+                <input name="email" type="email" className="w-full rounded border border-warm bg-card px-3 py-2" />
               </div>
               <div>
                 <label className="mb-1 block font-medium">Penjelasan</label>
-                <textarea name="argument" required rows={4} className="w-full rounded border border-border px-3 py-2" />
+                <textarea name="argument" required rows={4} className="w-full rounded border border-warm bg-card px-3 py-2" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="rounded-md px-4 py-2 text-muted hover:bg-surface">
+                <button type="button" onClick={() => setOpen(false)} className="rounded-md px-4 py-2 text-secondary hover:bg-card-alt">
                   Batal
                 </button>
-                <button type="submit" disabled={submitting} className="rounded-md bg-accent px-4 py-2 text-white hover:bg-accent-hover disabled:opacity-50">
+                <button type="submit" disabled={submitting} className="rounded-md bg-brand-700 px-4 py-2 text-white hover:bg-brand-900 disabled:opacity-50">
                   {submitting ? "Mengirim..." : "Kirim"}
                 </button>
               </div>
@@ -94,7 +94,7 @@ export function DisputeModal({ paperId }: { paperId: string }) {
       ) : null}
 
       {toast ? (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md bg-foreground px-4 py-3 text-sm text-background shadow-lg">
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md bg-primary px-4 py-3 text-sm text-card shadow-lg">
           {toast}
         </div>
       ) : null}

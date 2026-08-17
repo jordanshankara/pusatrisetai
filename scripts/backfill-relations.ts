@@ -15,7 +15,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { LLMClient } from "./lib/llm-client";
+import { LLMClient } from "../src/lib/services/llm-client";
 
 const prisma = new PrismaClient();
 

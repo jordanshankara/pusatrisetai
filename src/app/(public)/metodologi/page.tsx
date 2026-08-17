@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Metodologi — PusatRiset.ai" };
 export default function MetodologiPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <h1 className="font-serif text-2xl font-bold text-brand-900">Metodologi</h1>
+      <h1 className="text-2xl font-bold text-brand-900">Metodologi</h1>
       <p className="mt-2 text-sm text-secondary">
         Halaman ini menjelaskan bagaimana PusatRiset.ai mengumpulkan, mengurasi, dan menyajikan riset AI Indonesia
         &amp; dunia — termasuk batasan dan kebijakan yang kami terapkan.

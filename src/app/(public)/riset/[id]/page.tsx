@@ -40,7 +40,8 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   const result = await getPaperDetail(id, lang);
   if (result.type !== "found") return { title: "Riset — PusatRiset.ai" };
 
-  const description = (result.data.summary?.summaryLayperson ?? result.data.title).slice(0, 160);
+  const plainSummary = result.data.summary?.content?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const description = (plainSummary || result.data.title).slice(0, 160);
   return { title: `${result.data.title} — PusatRiset.ai`, description };
 }
 
@@ -71,7 +72,7 @@ export default async function PaperDetailPage({ params, searchParams }: { params
 
       {isRetracted ? <RetractedBanner reasoning={paper.relevance?.publishedReasoning} /> : null}
 
-      <h1 className="font-serif text-2xl font-bold leading-tight text-brand-900 sm:text-3xl">
+      <h1 className="text-2xl font-bold leading-tight text-brand-900 sm:text-3xl">
         <OriginFlag origin={paper.origin} /> {paper.title}
       </h1>
       {secondaryTitle ? <p className="mt-1 text-base italic text-secondary">{secondaryTitle.title}</p> : null}
@@ -248,19 +249,11 @@ export default async function PaperDetailPage({ params, searchParams }: { params
             </Link>
           </div>
 
-          {paper.summary ? (
+          {paper.summary?.content ? (
             <>
               <div>
-                <h2 className="mb-2 text-sm font-semibold text-primary">Ringkasan Sederhana</h2>
-                <p className="text-sm leading-relaxed text-primary">{paper.summary.summaryLayperson}</p>
-              </div>
-              <div>
-                <h2 className="mb-2 text-sm font-semibold text-primary">Ringkasan Teknis</h2>
-                <p className="text-sm leading-relaxed text-primary">{paper.summary.summaryTechnical}</p>
-              </div>
-              <div>
-                <h2 className="mb-2 text-sm font-semibold text-primary">Relevansi untuk Indonesia</h2>
-                <p className="text-sm leading-relaxed text-primary">{paper.summary.relevanceIndonesia}</p>
+                <h2 className="mb-2 text-sm font-semibold text-primary">Ringkasan</h2>
+                <div className="summary-content text-sm text-primary" dangerouslySetInnerHTML={{ __html: paper.summary.content }} />
               </div>
               <p className="text-xs text-muted-warm">
                 {paper.summary.provenance === "from_full_text" ? "Dibuat dari teks lengkap" : "Dibuat dari abstrak"} — ringkasan dibantu AI, ditinjau editor

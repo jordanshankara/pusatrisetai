@@ -177,7 +177,7 @@ export interface PaperDetail {
   affiliationCountries: string[];
   isFoundational: boolean;
   affiliationInferred: boolean;
-  summary: { language: string; summaryLayperson: string | null; summaryTechnical: string | null; relevanceIndonesia: string | null; provenance: string } | null;
+  summary: { language: string; content: string | null; provenance: string } | null;
   relevance: { publishedStatus: string | null; publishedReasoning: string | null } | null;
   policyTags: string[];
   successors: Array<{ relationType: string; reasoningText: string | null; paper: { id: string; title: string; publishedDate: Date | null } }>;
@@ -254,13 +254,7 @@ export async function getPaperDetail(id: string, lang: "id" | "en"): Promise<Pap
     isFoundational: paper.isFoundational,
     affiliationInferred: paper.affiliationInferred,
     summary: paper.summaries[0]
-      ? {
-          language: paper.summaries[0].language,
-          summaryLayperson: paper.summaries[0].summaryLayperson,
-          summaryTechnical: paper.summaries[0].summaryTechnical,
-          relevanceIndonesia: paper.summaries[0].relevanceIndonesia,
-          provenance: paper.summaries[0].provenance,
-        }
+      ? { language: paper.summaries[0].language, content: paper.summaries[0].content, provenance: paper.summaries[0].provenance }
       : null,
     relevance: paper.relevance ? { publishedStatus: paper.relevance.publishedStatus, publishedReasoning: paper.relevance.publishedReasoning } : null,
     policyTags: paper.policyTags.map((pt) => pt.tag.slug),
@@ -363,30 +357,22 @@ export interface HomeStats {
   institutionCount: number;
   curatedSummaryCount: number;
   recentPapers: PaperListItem[];
+  popularPapers: PaperListItem[];
 }
 
-export async function getHomeStats(): Promise<HomeStats> {
-  const [totalPapers, localPapers, institutionCount, curatedSummaryCount, recent] = await Promise.all([
-    prisma.paper.count({ where: withPublicPaperFilter({}) }),
-    prisma.paper.count({ where: withPublicPaperFilter({ origin: "local" }) }),
-    prisma.institution.count(),
-    prisma.summary.count({ where: { status: "published" } }),
-    prisma.paper.findMany({
-      where: withPublicPaperFilter({}),
-      orderBy: { publishedDate: "desc" },
-      take: 6,
-      include: {
-        venue: { select: { displayName: true } },
-        paperAuthors: { orderBy: { authorOrder: "asc" }, include: { author: { select: { name: true } } } },
-        topics: { where: { isPrimary: true }, select: { subfield: true } },
-        relevance: { select: { publishedStatus: true } },
-        policyTags: { where: { status: "published" }, include: { tag: { select: { slug: true } } } },
-        summaries: { where: { status: "published" }, select: { id: true } },
-      },
-    }),
-  ]);
+const homeCardInclude = {
+  venue: { select: { displayName: true } },
+  paperAuthors: { orderBy: { authorOrder: "asc" as const }, include: { author: { select: { name: true } } } },
+  topics: { where: { isPrimary: true }, select: { subfield: true } },
+  relevance: { select: { publishedStatus: true } },
+  policyTags: { where: { status: "published" as const }, include: { tag: { select: { slug: true } } } },
+  summaries: { where: { status: "published" as const }, select: { id: true } },
+} satisfies Prisma.PaperInclude;
 
-  const recentPapers: PaperListItem[] = recent.map((p) => ({
+type HomeCardPaper = Prisma.PaperGetPayload<{ include: typeof homeCardInclude }>;
+
+function mapToPaperListItem(p: HomeCardPaper): PaperListItem {
+  return {
     id: p.id,
     title: p.title,
     publishedDate: p.publishedDate,
@@ -398,7 +384,36 @@ export async function getHomeStats(): Promise<HomeStats> {
     relevanceBadge: p.relevance?.publishedStatus ?? null,
     policyTags: p.policyTags.map((pt) => pt.tag.slug),
     hasPublishedSummary: p.summaries.length > 0,
-  }));
+  };
+}
 
-  return { totalPapers, localPapers, institutionCount, curatedSummaryCount, recentPapers };
+export async function getHomeStats(): Promise<HomeStats> {
+  const [totalPapers, localPapers, institutionCount, curatedSummaryCount, recent, popular] = await Promise.all([
+    prisma.paper.count({ where: withPublicPaperFilter({}) }),
+    prisma.paper.count({ where: withPublicPaperFilter({ origin: "local" }) }),
+    prisma.institution.count(),
+    prisma.summary.count({ where: { status: "published" } }),
+    prisma.paper.findMany({
+      where: withPublicPaperFilter({}),
+      orderBy: { publishedDate: "desc" },
+      take: 6,
+      include: homeCardInclude,
+    }),
+    prisma.paper.findMany({
+      // gt:0 supaya "terpopuler" tidak menampilkan paper 0 sitasi selagi data sitasi masih tipis
+      where: withPublicPaperFilter({ citationStats: { citationCountTotal: { gt: 0 } } }),
+      orderBy: { citationStats: { citationCountTotal: "desc" } },
+      take: 6,
+      include: homeCardInclude,
+    }),
+  ]);
+
+  return {
+    totalPapers,
+    localPapers,
+    institutionCount,
+    curatedSummaryCount,
+    recentPapers: recent.map(mapToPaperListItem),
+    popularPapers: popular.map(mapToPaperListItem),
+  };
 }
