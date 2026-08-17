@@ -13,9 +13,9 @@ export function SubfieldBarChart({ data }: { data: TrendsResult["bySubfield"] })
             <span>{d.subfield}</span>
             <span>{d.local + d.international}</span>
           </div>
-          <div className="flex h-4 w-full overflow-hidden rounded border border-warm bg-card-alt">
-            <div className="bg-brand-700" style={{ width: `${(d.local / max) * 100}%` }} title={`Indonesia: ${d.local}`} />
-            <div className="border-l border-warm bg-card-alt" style={{ width: `${(d.international / max) * 100}%` }} title={`Internasional: ${d.international}`} />
+          <div className="flex h-4 w-full overflow-hidden rounded-full bg-card-alt">
+            <div className="gradient-card-teal" style={{ width: `${(d.local / max) * 100}%` }} title={`Indonesia: ${d.local}`} />
+            <div className="gradient-card-blue" style={{ width: `${(d.international / max) * 100}%` }} title={`Internasional: ${d.international}`} />
           </div>
         </div>
       ))}

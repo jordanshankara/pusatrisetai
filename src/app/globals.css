@@ -28,6 +28,13 @@
   --brand-blue-700: #14508A;
   --brand-blue-100: #E3EEF7;
 
+  /* Aksen teal — pelengkap navy untuk kartu KPI/gradient (referensi dashboard analitik
+     glassmorphic: kartu gradient teal/navy/indigo dengan teks putih) */
+  --brand-teal: #14B8A6;
+  --brand-teal-dark: #0F766E;
+  --brand-indigo: #6366F1;
+  --brand-indigo-dark: #3730A3;
+
   /* Teks — slate/navy modern, bukan coklat editorial */
   --text-primary: #0F172A;
   --text-secondary: #475569;
@@ -96,6 +103,26 @@
   a {
     color: inherit;
   }
+}
+
+/* Kartu gradient (KPI/stat) & glass — dipakai di stat card Home/Dashboard, kartu tier
+   Metodologi, dsb. Meniru referensi dashboard analitik glassmorphic (teal/navy/indigo,
+   teks putih, sudut sangat membulat) tapi dibangun dari token brand yang sudah ada,
+   bukan warna lepas baru. */
+.gradient-card-teal {
+  background: linear-gradient(135deg, #2dd4bf 0%, var(--brand-teal-dark) 55%, var(--brand-blue-900) 100%);
+}
+.gradient-card-blue {
+  background: linear-gradient(135deg, var(--brand-blue-700) 0%, var(--brand-blue-900) 100%);
+}
+.gradient-card-indigo {
+  background: linear-gradient(135deg, #818cf8 0%, var(--brand-indigo-dark) 55%, var(--brand-blue-900) 100%);
+}
+.glass-card {
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, white 55%, transparent);
 }
 
 /* Styling untuk HTML hasil RichTextEditor (Tiptap) — dipakai di editor admin (.prose-summary)

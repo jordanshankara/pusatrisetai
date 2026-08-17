@@ -15,7 +15,8 @@ function authorsLine(preview: string[], count: number): string {
 
 export function PaperCard({ paper }: { paper: PaperListItem }) {
   return (
-    <article className="rounded-[14px] border border-warm bg-card p-5 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-brand-700/40 hover:shadow-lg">
+    <article className="group relative overflow-hidden rounded-2xl border border-warm bg-card p-5 shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-brand-700/40 hover:shadow-lg">
+      <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-400 via-brand-700 to-indigo-500 opacity-0 transition-opacity group-hover:opacity-100" />
       <div className="flex flex-wrap items-start justify-between gap-2">
         <Link href={`/riset/${paper.id}`} className="flex items-start gap-2 text-base font-semibold leading-snug text-primary hover:text-brand-700 hover:underline">
           <FileText className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" />

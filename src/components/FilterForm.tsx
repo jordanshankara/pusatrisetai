@@ -1,5 +1,6 @@
 "use client";
 
+import { Globe2, CalendarRange, Tags, Award, ScrollText, SlidersHorizontal } from "lucide-react";
 import { POLICY_TAGS } from "@/lib/policy-tags";
 
 const RELEVANCE_OPTIONS = [
@@ -14,6 +15,15 @@ const RELEVANCE_OPTIONS = [
 
 function autoSubmit(e: React.SyntheticEvent<HTMLInputElement | HTMLSelectElement>) {
   e.currentTarget.form?.requestSubmit();
+}
+
+function Legend({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
+  return (
+    <legend className="mb-2 flex items-center gap-1.5 font-semibold text-primary">
+      <Icon className="h-4 w-4 text-brand-700" />
+      {children}
+    </legend>
+  );
 }
 
 interface FilterFormProps {
@@ -42,11 +52,16 @@ export function FilterForm({
   subfieldOptions,
 }: FilterFormProps) {
   return (
-    <form method="GET" action="/katalog" className="space-y-6 text-sm text-primary">
+    <form method="GET" action="/katalog" className="space-y-5 text-sm text-primary">
       {q ? <input type="hidden" name="q" value={q} /> : null}
 
-      <fieldset>
-        <legend className="mb-2 font-semibold text-primary">Asal Riset</legend>
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-warm">
+        <SlidersHorizontal className="h-3.5 w-3.5" />
+        Filter
+      </div>
+
+      <fieldset className="border-t border-warm pt-4">
+        <Legend icon={Globe2}>Asal Riset</Legend>
         <div className="space-y-1.5">
           {[
             { value: "", label: "Semua" },
@@ -61,8 +76,8 @@ export function FilterForm({
         </div>
       </fieldset>
 
-      <fieldset>
-        <legend className="mb-2 font-semibold text-primary">Rentang Tahun</legend>
+      <fieldset className="border-t border-warm pt-4">
+        <Legend icon={CalendarRange}>Rentang Tahun</Legend>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -84,9 +99,9 @@ export function FilterForm({
         </div>
       </fieldset>
 
-      <fieldset>
-        <legend className="mb-2 font-semibold text-primary">Subbidang</legend>
-        <div className="space-y-1.5">
+      <fieldset className="border-t border-warm pt-4">
+        <Legend icon={Tags}>Subbidang</Legend>
+        <div className="max-h-48 space-y-1.5 overflow-y-auto pr-1">
           {subfieldOptions.map((opt) => (
             <label key={opt.subfield} className="flex items-center gap-2">
               <input type="checkbox" name="subfield" value={opt.subfield} defaultChecked={subfields.includes(opt.subfield)} onChange={autoSubmit} />
@@ -97,8 +112,8 @@ export function FilterForm({
         </div>
       </fieldset>
 
-      <fieldset>
-        <legend className="mb-2 font-semibold text-primary">Badge Relevansi</legend>
+      <fieldset className="border-t border-warm pt-4">
+        <Legend icon={Award}>Badge Relevansi</Legend>
         <select name="relevance" defaultValue={relevance ?? ""} onChange={autoSubmit} className="w-full rounded border border-warm bg-card px-2 py-1.5">
           {RELEVANCE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -108,8 +123,8 @@ export function FilterForm({
         </select>
       </fieldset>
 
-      <fieldset>
-        <legend className="mb-2 font-semibold text-primary">Tag Kebijakan</legend>
+      <fieldset className="border-t border-warm pt-4">
+        <Legend icon={ScrollText}>Tag Kebijakan</Legend>
         <select name="policyTag" defaultValue={policyTag ?? ""} onChange={autoSubmit} className="w-full rounded border border-warm bg-card px-2 py-1.5">
           <option value="">Semua</option>
           {POLICY_TAGS.map((tag) => (
