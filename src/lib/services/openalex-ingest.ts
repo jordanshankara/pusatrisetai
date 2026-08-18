@@ -225,6 +225,12 @@ async function processWork(work: OpenAlexWork): Promise<"inserted" | "skipped" |
   const authorships = work.authorships ?? [];
   const authorCountries = authorships.flatMap((a) => a.institutions.map((i) => i.country_code));
   const affiliationCountries = deriveAffiliationCountries(authorCountries);
+  // BUGFIX: dulu origin di-hardcode "local" apa pun `--countries` yang dipakai fetch (ID atau
+  // US|CN) — parameter itu cuma filter kandidat pencarian OpenAlex, BUKAN identitas paper.
+  // Definisi origin (lihat schema.prisma model Paper): local ⇔ >=1 penulis berafiliasi
+  // institusi Indonesia, jadi harus di-derive dari affiliationCountries aktual, bukan dari
+  // negara yang dipakai untuk query.
+  const origin: "local" | "international" = affiliationCountries.includes("ID") ? "local" : "international";
 
   const paper = await prisma.paper.create({
     data: {
@@ -233,7 +239,7 @@ async function processWork(work: OpenAlexWork): Promise<"inserted" | "skipped" |
       abstractDisplayPolicy,
       publishedDate: work.publication_date ? new Date(work.publication_date) : null,
       language: work.language ?? null,
-      origin: "local",
+      origin,
       venueNameRaw: work.primary_location?.source?.display_name ?? null,
       /// dipakai belakangan utk backfill kuartil SJR (lihat scripts/backfill-sjr-quartile.ts) —
       /// TIDAK dihitung di sini supaya ingest tetap ringan/cepat (kuartil butuh call Elsevier terpisah, ada kuota mingguan)
