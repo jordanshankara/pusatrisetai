@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe2, CalendarRange, Tags, Award, ScrollText, SlidersHorizontal } from "lucide-react";
+import { Globe2, CalendarRange, Tags, Award, ScrollText, SlidersHorizontal, BarChart3 } from "lucide-react";
 import { POLICY_TAGS } from "@/lib/policy-tags";
 
 const RELEVANCE_OPTIONS = [
@@ -11,6 +11,15 @@ const RELEVANCE_OPTIONS = [
   { value: "retracted", label: "Ditarik" },
   { value: "foundational", label: "Riset Fondasi" },
   { value: "none", label: "Tanpa Badge" },
+];
+
+const QUARTILE_OPTIONS = [
+  { value: "", label: "Semua" },
+  { value: "q1", label: "Q1" },
+  { value: "q2", label: "Q2" },
+  { value: "q3", label: "Q3" },
+  { value: "q4", label: "Q4" },
+  { value: "unindexed", label: "Non-Scopus" },
 ];
 
 function autoSubmit(e: React.SyntheticEvent<HTMLInputElement | HTMLSelectElement>) {
@@ -33,6 +42,7 @@ interface FilterFormProps {
   yearTo?: string;
   subfields: string[];
   relevance?: string;
+  quartile?: string;
   policyTag?: string;
   hideSuperseded: boolean;
   openAccess: boolean;
@@ -46,6 +56,7 @@ export function FilterForm({
   yearTo,
   subfields,
   relevance,
+  quartile,
   policyTag,
   hideSuperseded,
   openAccess,
@@ -116,6 +127,17 @@ export function FilterForm({
         <Legend icon={Award}>Badge Relevansi</Legend>
         <select name="relevance" defaultValue={relevance ?? ""} onChange={autoSubmit} className="w-full rounded border border-warm bg-card px-2 py-1.5">
           {RELEVANCE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </fieldset>
+
+      <fieldset className="border-t border-warm pt-4">
+        <Legend icon={BarChart3}>Kuartil SJR</Legend>
+        <select name="quartile" defaultValue={quartile ?? ""} onChange={autoSubmit} className="w-full rounded border border-warm bg-card px-2 py-1.5">
+          {QUARTILE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>

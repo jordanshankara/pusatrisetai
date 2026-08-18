@@ -1,7 +1,8 @@
-import type { Prisma, MetadataStatus, EnrichmentStatus } from "@prisma/client";
+import type { Prisma, MetadataStatus, EnrichmentStatus, SjrQuartile } from "@prisma/client";
 
 const METADATA_STATUSES: MetadataStatus[] = ["indexed", "queued_review", "rejected", "withdrawn"];
 const ENRICHMENT_STATUSES: EnrichmentStatus[] = ["pending", "enriched_openalex", "no_doi", "not_found_openalex", "failed"];
+const SJR_QUARTILES: SjrQuartile[] = ["q1", "q2", "q3", "q4", "unindexed"];
 import { prisma } from "@/lib/db";
 import { ok, internalError } from "@/lib/api/response";
 import { requireAdmin } from "@/lib/api/require-admin";
@@ -48,6 +49,7 @@ export async function GET(request: Request) {
   const relevanceStatus = url.searchParams.get("relevanceStatus");
   const metadataStatus = url.searchParams.get("metadataStatus");
   const enrichmentStatus = url.searchParams.get("enrichmentStatus");
+  const quartile = url.searchParams.get("quartile");
   const sortParam = url.searchParams.get("sort") ?? "newest";
   const sort: SortOption = (SORT_OPTIONS as readonly string[]).includes(sortParam) ? (sortParam as SortOption) : "newest";
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1") || 1);
@@ -63,6 +65,8 @@ export async function GET(request: Request) {
   if (pinnedOnly) and.push({ priorityPinnedAt: { not: null } });
   if (metadataStatus && (METADATA_STATUSES as string[]).includes(metadataStatus)) and.push({ metadataStatus: metadataStatus as MetadataStatus });
   if (enrichmentStatus && (ENRICHMENT_STATUSES as string[]).includes(enrichmentStatus)) and.push({ enrichmentStatus: enrichmentStatus as EnrichmentStatus });
+  if (quartile === "belum_dicek") and.push({ sjrQuartile: null });
+  else if (quartile && (SJR_QUARTILES as string[]).includes(quartile)) and.push({ sjrQuartile: quartile as SjrQuartile });
 
   const effectiveSummaryStatus = summaryStatus ?? (missingSummary ? "none" : null);
   if (effectiveSummaryStatus === "none") {
@@ -103,6 +107,8 @@ export async function GET(request: Request) {
           isFoundational: true,
           enrichmentStatus: true,
           priorityPinnedAt: true,
+          sjrQuartile: true,
+          sjrScore: true,
           summaries: { where: { language: "id" }, select: { status: true } },
           relevance: { select: { publishedStatus: true, computedStatus: true } },
           citationStats: { select: { citationCountTotal: true } },
@@ -131,6 +137,8 @@ export async function GET(request: Request) {
         isFoundational: p.isFoundational,
         enrichmentStatus: p.enrichmentStatus,
         priorityPinnedAt: p.priorityPinnedAt,
+        sjrQuartile: p.sjrQuartile,
+        sjrScore: p.sjrScore,
         isNew: p.createdAt.getTime() >= sevenDaysAgo,
         summaryStatus: summaryStatusComputed,
         relevancePublishedStatus: p.relevance?.publishedStatus ?? null,

@@ -39,6 +39,18 @@ enum SourceTier {
 }
 /// tier_4 tidak pernah masuk tabel papers
 
+/// Kuartil SJR (Scimago Journal Rank) venue paper — dihitung sendiri via rank SJR (data resmi
+/// Elsevier Serial Title API) dalam populasi jurnal kategori Computer Science: top 25%=Q1, dst.
+/// unindexed = ISSN venue tidak ditemukan di Scopus sama sekali (di luar cakupan Scimago).
+/// Paper.sjrQuartile NULL = belum pernah dicek (beda dari unindexed) — lihat scripts/backfill-sjr-quartile.ts
+enum SjrQuartile {
+  q1
+  q2
+  q3
+  q4
+  unindexed
+}
+
 enum MetadataStatus {
   indexed
   queued_review
@@ -213,6 +225,13 @@ model Paper {
   /// "paling baru dipin dulu" tanpa kolom order terpisah). HANYA admin yang boleh mengubah
   /// (lihat requireAdminRole() di api/admin/papers/[id]/priority/route.ts) — editor cuma lihat.
   priorityPinnedAt      DateTime? @map("priority_pinned_at")
+  /// ISSN-L venue (dari OpenAlex primary_location.source.issn_l) — kunci pencocokan ke Elsevier
+  /// Serial Title API. NULL = venue tanpa ISSN (banyak conference proceedings) ATAU belum di-backfill.
+  issnL                 String?  @map("issn_l")
+  sjrQuartile           SjrQuartile? @map("sjr_quartile")
+  sjrScore              Float?   @map("sjr_score")
+  /// tahun data SJR yang dipakai (Elsevier merilis skor tahun N pertengahan tahun N+1)
+  sjrYear               Int?     @map("sjr_year")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -238,6 +257,8 @@ model Paper {
   @@index([metadataStatus])
   @@index([venueId])
   @@index([priorityPinnedAt])
+  @@index([sjrQuartile])
+  @@index([issnL])
   /// ADAPTASI: @@fulltext (MySQL FULLTEXT multi-kolom) DIBUANG — TiDB Cloud (target deploy) tidak
   /// mendukung FULLTEXT INDEX multi-kolom seperti MySQL asli. Pencarian di listPapers() dipindah
   /// ke Prisma `contains` (LIKE) biasa, portable di MySQL lokal maupun TiDB tanpa raw SQL.

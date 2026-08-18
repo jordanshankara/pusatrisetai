@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { getPaperDetail } from "@/lib/services/papers";
 import { RelevanceBadge } from "@/components/RelevanceBadge";
+import { QuartileBadge } from "@/components/QuartileBadge";
 import { RetractedBanner } from "@/components/RetractedBanner";
 import { OriginFlag } from "@/components/OriginFlag";
 import { DisputeModal } from "@/components/DisputeModal";
@@ -86,6 +87,7 @@ export default async function PaperDetailPage({ params, searchParams }: { params
           )}
         </span>
         {paper.venue ? <span>{paper.venue.displayName}</span> : null}
+        {paper.sjrQuartile ? <QuartileBadge quartile={paper.sjrQuartile} /> : null}
         {paper.publishedDate ? <span>{formatDateId(paper.publishedDate)}</span> : null}
         {paper.affiliationCountries.length > 0 ? <span>Afiliasi: {paper.affiliationCountries.join(", ")}</span> : null}
       </div>

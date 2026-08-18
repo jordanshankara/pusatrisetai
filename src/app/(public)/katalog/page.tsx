@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Search, LayoutGrid, LibraryBig, SearchX } from "lucide-react";
 import { listPapers, getTopicsWithCounts, type RelevanceFilterValue, RELEVANCE_FILTER_VALUES } from "@/lib/services/papers";
+
+const QUARTILE_FILTER_VALUES = ["q1", "q2", "q3", "q4", "unindexed"] as const;
 import { PaperCard } from "@/components/PaperCard";
 import { FilterForm } from "@/components/FilterForm";
 import { Pagination } from "@/components/Pagination";
@@ -30,6 +32,10 @@ export default async function KatalogPage({ searchParams }: { searchParams: Prom
   const subfields = toList(sp.subfield);
   const relevanceRaw = first(sp.relevance);
   const relevance = RELEVANCE_FILTER_VALUES.includes(relevanceRaw as RelevanceFilterValue) ? (relevanceRaw as RelevanceFilterValue) : undefined;
+  const quartileRaw = first(sp.quartile);
+  const quartile = QUARTILE_FILTER_VALUES.includes(quartileRaw as (typeof QUARTILE_FILTER_VALUES)[number])
+    ? (quartileRaw as "q1" | "q2" | "q3" | "q4" | "unindexed")
+    : undefined;
   const policyTag = first(sp.policyTag);
   const hideSuperseded = first(sp.hideSuperseded) === "true";
   const openAccess = first(sp.openAccess) === "true";
@@ -44,6 +50,7 @@ export default async function KatalogPage({ searchParams }: { searchParams: Prom
       yearTo: yearTo ? Number(yearTo) : undefined,
       subfield: subfields.length > 0 ? subfields : undefined,
       relevance,
+      quartile,
       policyTag: policyTag || undefined,
       hideSuperseded,
       openAccess: openAccess || undefined,
@@ -61,6 +68,7 @@ export default async function KatalogPage({ searchParams }: { searchParams: Prom
     if (yearTo) params.set("yearTo", yearTo);
     for (const s of subfields) params.append("subfield", s);
     if (relevance) params.set("relevance", relevance);
+    if (quartile) params.set("quartile", quartile);
     if (policyTag) params.set("policyTag", policyTag);
     if (hideSuperseded) params.set("hideSuperseded", "true");
     if (openAccess) params.set("openAccess", "true");
@@ -95,6 +103,7 @@ export default async function KatalogPage({ searchParams }: { searchParams: Prom
               <input key={s} type="hidden" name="subfield" value={s} />
             ))}
             {relevance ? <input type="hidden" name="relevance" value={relevance} /> : null}
+            {quartile ? <input type="hidden" name="quartile" value={quartile} /> : null}
             {policyTag ? <input type="hidden" name="policyTag" value={policyTag} /> : null}
             {hideSuperseded ? <input type="hidden" name="hideSuperseded" value="true" /> : null}
             {openAccess ? <input type="hidden" name="openAccess" value="true" /> : null}
@@ -125,6 +134,7 @@ export default async function KatalogPage({ searchParams }: { searchParams: Prom
               yearTo={yearTo}
               subfields={subfields}
               relevance={relevance}
+              quartile={quartile}
               policyTag={policyTag}
               hideSuperseded={hideSuperseded}
               openAccess={openAccess}

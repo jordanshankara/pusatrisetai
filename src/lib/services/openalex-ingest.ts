@@ -68,7 +68,7 @@ interface OpenAlexWork {
   publication_date: string | null;
   language: string | null;
   open_access?: { is_oa?: boolean } | null;
-  primary_location?: { source?: { display_name?: string | null } | null; license?: string | null } | null;
+  primary_location?: { source?: { display_name?: string | null; issn_l?: string | null } | null; license?: string | null } | null;
   abstract_inverted_index?: Record<string, number[]> | null;
   authorships?: OpenAlexAuthorship[];
   primary_topic?: {
@@ -235,6 +235,9 @@ async function processWork(work: OpenAlexWork): Promise<"inserted" | "skipped" |
       language: work.language ?? null,
       origin: "local",
       venueNameRaw: work.primary_location?.source?.display_name ?? null,
+      /// dipakai belakangan utk backfill kuartil SJR (lihat scripts/backfill-sjr-quartile.ts) —
+      /// TIDAK dihitung di sini supaya ingest tetap ringan/cepat (kuartil butuh call Elsevier terpisah, ada kuota mingguan)
+      issnL: work.primary_location?.source?.issn_l ?? null,
       sourceTier: "tier_2",
       tierReason: "openalex_fetch",
       metadataStatus: "indexed",

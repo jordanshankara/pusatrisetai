@@ -7,6 +7,7 @@ import { AdminCard } from "@/components/admin/AdminCard";
 import { RelevancePanel } from "@/components/admin/RelevancePanel";
 import { AddRelationForm } from "@/components/admin/AddRelationForm";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { QuartileBadge } from "@/components/QuartileBadge";
 import { useAdminRole } from "@/components/admin/AdminRoleContext";
 import { adminFetch } from "@/lib/admin-fetch";
 
@@ -36,6 +37,8 @@ interface PaperDetail {
   metadataStatus: string;
   licenseNormalized: string;
   priorityPinnedAt: string | null;
+  sjrQuartile: string | null;
+  sjrScore: number | null;
   summaries: SummaryRow[];
   relationsOld: RelationRow[];
   relationsNew: RelationRow[];
@@ -179,8 +182,14 @@ export function PaperAdminDetail({ paperId }: { paperId: string }) {
           <span className="shrink-0 rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">📌 Prioritas</span>
         ) : null}
       </div>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted">
         {paper.origin === "local" ? "Indonesia" : "Internasional"} · lisensi: {paper.licenseNormalized} · abstrak: {paper.abstractDisplayPolicy}
+        {paper.sjrQuartile ? (
+          <QuartileBadge quartile={paper.sjrQuartile} />
+        ) : (
+          <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">Kuartil: belum dicek</span>
+        )}
+        {paper.sjrScore !== null ? <span className="text-xs text-muted">SJR {paper.sjrScore.toFixed(3)}</span> : null}
       </p>
       <Link href={`/riset/${paper.id}`} target="_blank" className="mt-1 inline-block text-xs text-accent hover:underline">
         Lihat halaman publik →

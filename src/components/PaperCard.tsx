@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FileText } from "lucide-react";
 import type { PaperListItem } from "@/lib/services/papers";
 import { RelevanceBadge } from "./RelevanceBadge";
+import { QuartileBadge } from "./QuartileBadge";
 import { RetractedBanner } from "./RetractedBanner";
 import { OriginFlag } from "./OriginFlag";
 import { formatYearId } from "@/lib/format";
@@ -24,7 +25,10 @@ export function PaperCard({ paper }: { paper: PaperListItem }) {
             <OriginFlag origin={paper.origin} /> {paper.title}
           </span>
         </Link>
-        <RelevanceBadge status={paper.relevanceBadge} />
+        <span className="flex shrink-0 items-center gap-1.5">
+          <QuartileBadge quartile={paper.sjrQuartile} />
+          <RelevanceBadge status={paper.relevanceBadge} />
+        </span>
       </div>
 
       {paper.relevanceBadge === "retracted" ? <div className="mt-1"><RetractedBanner compact /></div> : null}

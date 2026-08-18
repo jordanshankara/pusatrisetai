@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AdminCard } from "@/components/admin/AdminCard";
 import { RelevanceBadge } from "@/components/RelevanceBadge";
+import { QuartileBadge } from "@/components/QuartileBadge";
 import { useAdminRole } from "@/components/admin/AdminRoleContext";
 import { adminFetch } from "@/lib/admin-fetch";
 
@@ -19,6 +20,8 @@ interface PaperRow {
   isFoundational: boolean;
   enrichmentStatus: string;
   priorityPinnedAt: string | null;
+  sjrQuartile: string | null;
+  sjrScore: number | null;
   isNew: boolean;
   summaryStatus: "none" | "draft" | "published";
   relevancePublishedStatus: string | null;
@@ -65,6 +68,16 @@ const ENRICHMENT_STATUS_OPTIONS = [
   { value: "failed", label: "Gagal" },
 ];
 
+const QUARTILE_OPTIONS = [
+  { value: "", label: "Semua" },
+  { value: "q1", label: "Q1" },
+  { value: "q2", label: "Q2" },
+  { value: "q3", label: "Q3" },
+  { value: "q4", label: "Q4" },
+  { value: "unindexed", label: "Non-Scopus" },
+  { value: "belum_dicek", label: "Belum dicek" },
+];
+
 const SUMMARY_STATUS_BADGE: Record<string, string> = {
   none: "bg-surface text-muted",
   draft: "bg-[var(--badge-needs-update-bg)] text-[var(--badge-needs-update-fg)]",
@@ -92,6 +105,7 @@ export function PaperListClient() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [metadataStatus, setMetadataStatus] = useState("");
   const [enrichmentStatus, setEnrichmentStatus] = useState("");
+  const [quartile, setQuartile] = useState("");
   const [page, setPage] = useState(1);
   const [togglingPinId, setTogglingPinId] = useState<string | null>(null);
 
@@ -102,7 +116,7 @@ export function PaperListClient() {
   // Reset ke halaman 1 tiap kali salah satu filter/sort berubah (bukan pagination itu sendiri) —
   // disesuaikan saat render (bukan di useEffect) mengikuti pola React "adjusting state during
   // render" supaya tidak memicu render tambahan yang tidak perlu.
-  const filterKey = JSON.stringify([q, origin, sort, yearFrom, yearTo, summaryStatus, relevanceStatus, newOnly, pinnedOnly, metadataStatus, enrichmentStatus]);
+  const filterKey = JSON.stringify([q, origin, sort, yearFrom, yearTo, summaryStatus, relevanceStatus, newOnly, pinnedOnly, metadataStatus, enrichmentStatus, quartile]);
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -123,6 +137,7 @@ export function PaperListClient() {
       if (pinnedOnly) params.set("pinnedOnly", "true");
       if (metadataStatus) params.set("metadataStatus", metadataStatus);
       if (enrichmentStatus) params.set("enrichmentStatus", enrichmentStatus);
+      if (quartile) params.set("quartile", quartile);
       const res = await adminFetch(`/api/admin/papers?${params}`);
       const body = await res.json().catch(() => null);
       if (res.ok) {
@@ -138,7 +153,7 @@ export function PaperListClient() {
     const debounce = setTimeout(loadPapers, 300);
     return () => clearTimeout(debounce);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, origin, sort, yearFrom, yearTo, summaryStatus, relevanceStatus, newOnly, pinnedOnly, metadataStatus, enrichmentStatus, page]);
+  }, [q, origin, sort, yearFrom, yearTo, summaryStatus, relevanceStatus, newOnly, pinnedOnly, metadataStatus, enrichmentStatus, quartile, page]);
 
   async function togglePin(e: React.MouseEvent, id: string) {
     e.preventDefault();
@@ -211,6 +226,13 @@ export function PaperListClient() {
             {RELEVANCE_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 Relevansi: {o.label}
+              </option>
+            ))}
+          </select>
+          <select value={quartile} onChange={(e) => setQuartile(e.target.value)} className={selectClass}>
+            {QUARTILE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                Kuartil: {o.label}
               </option>
             ))}
           </select>
@@ -306,6 +328,7 @@ export function PaperListClient() {
                         {p.sourceTier.replace("tier_", "T")}
                         {p.isFoundational ? " ⭐" : ""}
                       </span>
+                      <QuartileBadge quartile={p.sjrQuartile} />
                       {p.citationCountTotal !== null ? (
                         <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-muted">{p.citationCountTotal} sitasi</span>
                       ) : null}

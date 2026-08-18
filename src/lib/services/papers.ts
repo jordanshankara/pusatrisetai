@@ -20,6 +20,7 @@ export interface ListPapersParams {
   subfield?: string | string[];
   tier?: "tier_1" | "tier_2" | "tier_3";
   relevance?: RelevanceFilterValue;
+  quartile?: "q1" | "q2" | "q3" | "q4" | "unindexed";
   openAccess?: boolean;
   country?: string;
   policyTag?: string;
@@ -38,6 +39,7 @@ export interface PaperListItem {
   authorCount: number;
   primarySubfield: string | null;
   relevanceBadge: string | null;
+  sjrQuartile: string | null;
   policyTags: string[];
   hasPublishedSummary: boolean;
 }
@@ -64,6 +66,7 @@ export async function listPapers(params: ListPapersParams): Promise<ListPapersRe
     if (subfields.length > 0) andConditions.push({ topics: { some: { subfield: { in: subfields } } } });
   }
   if (params.tier) andConditions.push({ sourceTier: params.tier });
+  if (params.quartile) andConditions.push({ sjrQuartile: params.quartile });
   if (params.openAccess === true) andConditions.push({ abstractDisplayPolicy: "full" });
   if (params.country) andConditions.push({ affiliationCountries: { some: { countryCode: params.country } } });
   if (params.policyTag) {
@@ -180,6 +183,7 @@ export async function listPapers(params: ListPapersParams): Promise<ListPapersRe
     authorCount: p.paperAuthors.length,
     primarySubfield: p.topics[0]?.subfield ?? null,
     relevanceBadge: p.relevance?.publishedStatus ?? null,
+    sjrQuartile: p.sjrQuartile,
     policyTags: p.policyTags.map((pt) => pt.tag.slug),
     hasPublishedSummary: p.summaries.length > 0,
   }));
@@ -209,6 +213,7 @@ export interface PaperDetail {
   affiliationInferred: boolean;
   summary: { language: string; content: string | null; provenance: string } | null;
   relevance: { publishedStatus: string | null; publishedReasoning: string | null } | null;
+  sjrQuartile: string | null;
   policyTags: string[];
   successors: Array<{ relationType: string; reasoningText: string | null; paper: { id: string; title: string; publishedDate: Date | null } }>;
   related: Array<{ reasoningText: string | null; paper: { id: string; title: string; publishedDate: Date | null } }>;
@@ -287,6 +292,7 @@ export async function getPaperDetail(id: string, lang: "id" | "en"): Promise<Pap
       ? { language: paper.summaries[0].language, content: paper.summaries[0].content, provenance: paper.summaries[0].provenance }
       : null,
     relevance: paper.relevance ? { publishedStatus: paper.relevance.publishedStatus, publishedReasoning: paper.relevance.publishedReasoning } : null,
+    sjrQuartile: paper.sjrQuartile,
     policyTags: paper.policyTags.map((pt) => pt.tag.slug),
     successors: paper.relationsOld.map((rel) => ({
       relationType: rel.relationType,
@@ -412,6 +418,7 @@ function mapToPaperListItem(p: HomeCardPaper): PaperListItem {
     authorCount: p.paperAuthors.length,
     primarySubfield: p.topics[0]?.subfield ?? null,
     relevanceBadge: p.relevance?.publishedStatus ?? null,
+    sjrQuartile: p.sjrQuartile,
     policyTags: p.policyTags.map((pt) => pt.tag.slug),
     hasPublishedSummary: p.summaries.length > 0,
   };
