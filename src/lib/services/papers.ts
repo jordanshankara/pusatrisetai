@@ -27,6 +27,10 @@ export interface ListPapersParams {
   hideSuperseded?: boolean;
   page: number;
   perPage: number;
+  /** Hitung facets (origin/tahun/subbidang) — default false. Archive publik tidak memakainya
+   *  (sidebar filter subbidang pakai getTopicsWithCounts terpisah); API publik /api/v1/papers
+   *  kirim true eksplisit supaya kontrak responsnya tidak berubah. */
+  includeFacets?: boolean;
 }
 
 export interface PaperListItem {
@@ -83,6 +87,12 @@ export async function listPapers(params: ListPapersParams): Promise<ListPapersRe
     andConditions.push({ NOT: { relevance: { publishedStatus: "superseded" } } });
   }
 
+  // PATCH: dulu andConditions.push({ id: { in: searchOrder } }) dipasang DI DALAM blok `if
+  // (params.q)`, sebelum `where` final dibangun — jadi query ranking kata kunci di bawah ini
+  // TIDAK ikut memfilter origin/tahun/subfield/dll (filter itu baru diterapkan belakangan lewat
+  // andConditions). Sekarang query ranking dibangun dari andConditions yang SUDAH lengkap,
+  // supaya searchOrder itu sendiri sudah fully-filtered — pagination bisa slice searchOrder
+  // langsung tanpa takut ada baris yang lolos slice tapi seharusnya kefilter kondisi lain.
   let searchOrder: string[] | null = null;
   if (params.q) {
     // ADAPTASI: MySQL FULLTEXT MATCH...AGAINST dibuang (TiDB Cloud, target deploy, tidak
@@ -110,7 +120,9 @@ export async function listPapers(params: ListPapersParams): Promise<ListPapersRe
     const effectiveWords = words.length > 0 ? words : [params.q.toLowerCase().trim()].filter(Boolean);
 
     const rows = await prisma.paper.findMany({
-      where: { OR: effectiveWords.flatMap((w) => [{ title: { contains: w } }, { abstractRaw: { contains: w } }]) },
+      where: withPublicPaperFilter({
+        AND: [...andConditions, { OR: effectiveWords.flatMap((w) => [{ title: { contains: w } }, { abstractRaw: { contains: w } }]) }],
+      }),
       select: { id: true, title: true, abstractRaw: true },
     });
     searchOrder = rows
@@ -130,50 +142,41 @@ export async function listPapers(params: ListPapersParams): Promise<ListPapersRe
     if (searchOrder.length === 0) {
       return emptyResult(params.page, params.perPage);
     }
-    andConditions.push({ id: { in: searchOrder } });
   }
 
-  const where = withPublicPaperFilter(andConditions.length > 0 ? { AND: andConditions } : {});
+  // PATCH (perf): dulu findMany di sini TANPA skip/take menarik SEMUA baris cocok (bisa 22k+)
+  // berikut 6 relasi ter-join, baru dipotong (.slice) & dihitung facet di JS setelahnya — pada
+  // dataset besar ini butuh 60+ detik. Sekarang skip/take didorong ke query Prisma supaya hanya
+  // `perPage` baris yang pernah kena 6 join sekaligus; `total` dihitung lewat count()/panjang
+  // searchOrder (murah, tanpa join) yang berjalan paralel dengan fetch halaman saat ini.
+  const where = searchOrder
+    ? withPublicPaperFilter({ id: { in: searchOrder } })
+    : withPublicPaperFilter(andConditions.length > 0 ? { AND: andConditions } : {});
+  const skip = (params.page - 1) * params.perPage;
+  const pageIds = searchOrder ? searchOrder.slice(skip, skip + params.perPage) : null;
 
-  const papers = await prisma.paper.findMany({
-    where,
-    orderBy: searchOrder ? undefined : { publishedDate: "desc" },
-    include: {
-      venue: { select: { displayName: true } },
-      paperAuthors: { orderBy: { authorOrder: "asc" }, include: { author: { select: { name: true } } } },
-      topics: { where: { isPrimary: true }, select: { subfield: true } },
-      relevance: { select: { publishedStatus: true } },
-      policyTags: { where: { status: "published" }, include: { tag: { select: { slug: true } } } },
-      summaries: { where: { status: "published" }, select: { id: true } },
-    },
-  });
+  const paperInclude = {
+    venue: { select: { displayName: true } },
+    paperAuthors: { orderBy: { authorOrder: "asc" as const }, include: { author: { select: { name: true } } } },
+    topics: { where: { isPrimary: true }, select: { subfield: true } },
+    relevance: { select: { publishedStatus: true } },
+    policyTags: { where: { status: "published" as const }, include: { tag: { select: { slug: true } } } },
+    summaries: { where: { status: "published" as const }, select: { id: true } },
+  } satisfies Prisma.PaperInclude;
 
-  let ordered = papers;
-  if (searchOrder) {
-    const orderIndex = new Map(searchOrder.map((id, i) => [id, i]));
-    ordered = [...papers].sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
-  }
+  const [total, papers, facets] = await Promise.all([
+    searchOrder ? searchOrder.length : prisma.paper.count({ where }),
+    pageIds
+      ? prisma.paper.findMany({ where: withPublicPaperFilter({ id: { in: pageIds } }), include: paperInclude })
+      : prisma.paper.findMany({ where, orderBy: { publishedDate: "desc" }, skip, take: params.perPage, include: paperInclude }),
+    params.includeFacets ? computeFacets(where) : Promise.resolve(emptyFacets()),
+  ]);
 
-  const facets = {
-    origin: { local: 0, international: 0 },
-    years: {} as Record<string, number>,
-    subfields: {} as Record<string, number>,
-  };
-  for (const p of ordered) {
-    facets.origin[p.origin] += 1;
-    if (p.publishedDate) {
-      const year = String(p.publishedDate.getUTCFullYear());
-      facets.years[year] = (facets.years[year] ?? 0) + 1;
-    }
-    const subfield = p.topics[0]?.subfield;
-    if (subfield) facets.subfields[subfield] = (facets.subfields[subfield] ?? 0) + 1;
-  }
+  // Re-sort HANYA atas halaman saat ini (<= perPage baris), bukan seluruh dataset — beda dari
+  // versi lama yang sort di atas seluruh hasil match sebelum slice.
+  const ordered = pageIds ? pageIds.map((id) => papers.find((p) => p.id === id)).filter((p): p is (typeof papers)[number] => p != null) : papers;
 
-  const total = ordered.length;
-  const start = (params.page - 1) * params.perPage;
-  const pageItems = ordered.slice(start, start + params.perPage);
-
-  const data: PaperListItem[] = pageItems.map((p) => ({
+  const data: PaperListItem[] = ordered.map((p) => ({
     id: p.id,
     title: p.title,
     publishedDate: p.publishedDate,
@@ -192,7 +195,43 @@ export async function listPapers(params: ListPapersParams): Promise<ListPapersRe
 }
 
 function emptyResult(page: number, perPage: number): ListPapersResult {
-  return { data: [], total: 0, page, perPage, facets: { origin: { local: 0, international: 0 }, years: {}, subfields: {} } };
+  return { data: [], total: 0, page, perPage, facets: emptyFacets() };
+}
+
+function emptyFacets(): ListPapersResult["facets"] {
+  return { origin: { local: 0, international: 0 }, years: {}, subfields: {} };
+}
+
+/** Facets (hitungan origin/tahun/subbidang) lewat query agregasi ringan, BUKAN dengan menarik
+ *  seluruh baris + 6 relasi lalu hitung di JS (versi lama) — origin & subfield lewat groupBy
+ *  (murni di database); tahun tetap select kolom tipis (publishedDate saja, tanpa join) lalu
+ *  di-bucket di JS karena GROUP BY YEAR() butuh raw SQL yang berisiko drift dari `where` yang
+ *  berisi banyak kondisi relasi (topics.some, policyTags.some, dll). */
+async function computeFacets(where: Prisma.PaperWhereInput): Promise<ListPapersResult["facets"]> {
+  const [originRows, subfieldRows, yearRows] = await Promise.all([
+    prisma.paper.groupBy({ by: ["origin"], where, _count: { _all: true } }),
+    prisma.paperTopic.groupBy({
+      by: ["subfield"],
+      where: { subfield: { not: null }, isPrimary: true, paper: where },
+      _count: { _all: true },
+    }),
+    prisma.paper.findMany({ where, select: { publishedDate: true } }),
+  ]);
+
+  const origin = { local: 0, international: 0 };
+  for (const r of originRows) origin[r.origin] = r._count._all;
+
+  const subfields: Record<string, number> = {};
+  for (const r of subfieldRows) if (r.subfield) subfields[r.subfield] = r._count._all;
+
+  const years: Record<string, number> = {};
+  for (const r of yearRows) {
+    if (!r.publishedDate) continue;
+    const year = String(r.publishedDate.getUTCFullYear());
+    years[year] = (years[year] ?? 0) + 1;
+  }
+
+  return { origin, years, subfields };
 }
 
 export interface PaperDetail {
@@ -353,33 +392,51 @@ export interface TrendsResult {
 }
 
 export async function getTrends(): Promise<TrendsResult> {
-  const papers = await prisma.paper.findMany({
-    where: withPublicPaperFilter({}),
-    select: { origin: true, publishedDate: true, topics: { where: { isPrimary: true }, select: { subfield: true } } },
-  });
+  const where = withPublicPaperFilter({});
+
+  // PATCH (perf): dulu findMany dengan include topics lalu reduce SEMUA baris di JS untuk KEDUA
+  // sumbu (tahun & subbidang) sekaligus. bySubfield sekarang lewat groupBy murni database (2
+  // panggilan, satu per origin, karena origin ada di Paper sementara subfield ada di relasi
+  // PaperTopic — Prisma groupBy tidak bisa gabung kolom lintas-relasi dalam satu call). byYear
+  // tetap select kolom tipis (origin + publishedDate saja, tanpa join topics) lalu di-bucket di
+  // JS, karena GROUP BY YEAR() butuh raw SQL yang berisiko drift dari `where`.
+  const [yearRows, subfieldLocalRows, subfieldIntlRows] = await Promise.all([
+    prisma.paper.findMany({ where, select: { origin: true, publishedDate: true } }),
+    prisma.paperTopic.groupBy({
+      by: ["subfield"],
+      where: { subfield: { not: null }, isPrimary: true, paper: { ...where, origin: "local" } },
+      _count: { _all: true },
+    }),
+    prisma.paperTopic.groupBy({
+      by: ["subfield"],
+      where: { subfield: { not: null }, isPrimary: true, paper: { ...where, origin: "international" } },
+      _count: { _all: true },
+    }),
+  ]);
 
   const byYearMap = new Map<number, { local: number; international: number }>();
-  const bySubfieldMap = new Map<string, { local: number; international: number }>();
-
-  for (const p of papers) {
-    if (p.publishedDate) {
-      const year = p.publishedDate.getUTCFullYear();
-      const entry = byYearMap.get(year) ?? { local: 0, international: 0 };
-      entry[p.origin] += 1;
-      byYearMap.set(year, entry);
-    }
-    const subfield = p.topics[0]?.subfield;
-    if (subfield) {
-      const entry = bySubfieldMap.get(subfield) ?? { local: 0, international: 0 };
-      entry[p.origin] += 1;
-      bySubfieldMap.set(subfield, entry);
-    }
+  for (const p of yearRows) {
+    if (!p.publishedDate) continue;
+    const year = p.publishedDate.getUTCFullYear();
+    const entry = byYearMap.get(year) ?? { local: 0, international: 0 };
+    entry[p.origin] += 1;
+    byYearMap.set(year, entry);
   }
-
   const byYear = Array.from(byYearMap.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([year, counts]) => ({ year, ...counts }));
 
+  const bySubfieldMap = new Map<string, { local: number; international: number }>();
+  for (const r of subfieldLocalRows) {
+    if (!r.subfield) continue;
+    bySubfieldMap.set(r.subfield, { local: r._count._all, international: 0 });
+  }
+  for (const r of subfieldIntlRows) {
+    if (!r.subfield) continue;
+    const entry = bySubfieldMap.get(r.subfield) ?? { local: 0, international: 0 };
+    entry.international = r._count._all;
+    bySubfieldMap.set(r.subfield, entry);
+  }
   const bySubfield = Array.from(bySubfieldMap.entries())
     .sort((a, b) => b[1].local + b[1].international - (a[1].local + a[1].international))
     .map(([subfield, counts]) => ({ subfield, ...counts }));

@@ -34,7 +34,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await listPapers(parsed.data);
+    const result = await listPapers({ ...parsed.data, includeFacets: true });
     return ok(result.data, { total: result.total, page: result.page, perPage: result.perPage, facets: result.facets });
   } catch (error) {
     return internalError(error);

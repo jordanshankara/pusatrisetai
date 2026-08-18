@@ -252,6 +252,7 @@ model Paper {
   mergesAsSurviving PaperMerge[] @relation("surviving")
 
   @@index([publishedDate])
+  @@index([metadataStatus, publishedDate])
   @@index([origin])
   @@index([sourceTier])
   @@index([metadataStatus])
