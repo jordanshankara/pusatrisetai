@@ -373,6 +373,24 @@ ke satu datasource). Isi `TIDB_DATABASE_URL` dan `DATABASE_URL` (lokal) di `.env
 npx tsx scripts/migrate-to-local.ts   # tarik salinan penuh TiDB ke MySQL lokal
 ```
 
+### Dump SQL untuk referensi/onboarding programmer
+
+Dua jenis export tersedia lewat `mysqldump`, tujuan beda:
+
+| File | Isi | Ukuran | Di git? |
+|---|---|---|---|
+| `docs/pusatriset-schema.sql` | `CREATE TABLE` 24 tabel saja, **tanpa data** | ~24KB | ✅ Ya — aman, jadi referensi struktur DB terkini |
+| `docs/*-full-dump.sql(.gz)` | Skema + **seluruh data produksi** (35k+ paper, 651k+ baris relasi) | 130MB+ mentah / ~46MB gzip | ❌ **Tidak** — `.gitignore` mengecualikan pola `docs/*-full-dump.sql*` (GitHub menolak file >100MB, dan data produksi tidak semestinya masuk riwayat git) |
+
+```bash
+# skema saja (aman commit)
+mysqldump -u root --no-data --routines --triggers --comments pusatriset > docs/pusatriset-schema.sql
+
+# full dump (JANGAN commit — kirim terpisah, mis. Google Drive/gzip via chat)
+mysqldump -u root --routines --triggers --comments --single-transaction pusatriset > docs/pusatriset-full-dump.sql
+gzip -k docs/pusatriset-full-dump.sql
+```
+
 ---
 
 ## Struktur route & API
