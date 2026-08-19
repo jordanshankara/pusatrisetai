@@ -48,3 +48,9 @@ next-env.d.ts
 # disimpan di disk untuk dipantau tapi tidak perlu masuk riwayat git
 docs/*.log
 
+# dump SQL BERISI DATA (bukan cuma skema) — puluhan/ratusan MB, data produksi asli, tidak
+# pernah masuk git (GitHub reject file >100MB lagipula). docs/pusatriset-schema.sql (skema
+# saja, tanpa data, ~24KB) SENGAJA TIDAK di-ignore — itu aman & berguna sebagai referensi.
+docs/*-full-dump.sql
+docs/*-full-dump.sql.gz
+
