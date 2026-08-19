@@ -60,18 +60,23 @@ async function backfillIssn() {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      const foundIds = new Set<string>();
       for (const work of data.results ?? []) {
         const paperId = idMap.get(work.id);
         if (!paperId) continue;
+        foundIds.add(work.id);
         const issnL = work.primary_location?.source?.issn_l ?? null;
         await prisma.paper.update({ where: { id: paperId }, data: { issnL } });
         if (issnL) filled++;
       }
-    } catch (error) {
-      console.log(`  [gagal batch] ${error instanceof Error ? error.message : error} — tandai "" (dicoba, gagal), lanjut`);
-      for (const paperId of idMap.values()) {
-        await prisma.paper.updateMany({ where: { id: paperId, issnL: null }, data: { issnL: "" } });
+      // Mark papers yang tidak ditemukan di OpenAlex dengan issn_l="" supaya tidak di-retry lagi
+      for (const [oaId, paperId] of idMap) {
+        if (!foundIds.has(oaId)) {
+          await prisma.paper.update({ where: { id: paperId }, data: { issnL: "" } });
+        }
       }
+    } catch (error) {
+      console.log(`  [gagal batch] ${error instanceof Error ? error.message : error} — skip batch, retry di run berikutnya (idempotent)`);
     }
 
     processed += batch.length;
