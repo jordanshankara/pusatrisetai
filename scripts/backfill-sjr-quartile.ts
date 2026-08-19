@@ -58,6 +58,11 @@ async function backfillIssn() {
 
     try {
       const res = await fetch(url);
+      if (res.status === 429) {
+        console.log("  [rate-limit] tunggu 15s lalu coba lagi...");
+        await sleep(15000);
+        continue;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const foundIds = new Set<string>();
